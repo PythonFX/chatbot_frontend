@@ -62,6 +62,8 @@ export default function App() {
   const streamAbortRef = useRef(null) // Track ongoing stream request
   const autoScrollRef = useRef(true) // Auto-scroll during streaming, disabled on user scroll
   const chunkTextLenRef = useRef(0) // Accumulated text length for scroll triggering
+  const messageRefs = useRef([]) // Refs for each message element
+  const [currentMessageIndex, setCurrentMessageIndex] = useState(-1) // Track current navigated message
 
   // Load conversations on mount
   useEffect(() => {
@@ -169,6 +171,12 @@ export default function App() {
     }
   }, [currentConversation?.id])
 
+  // Reset message refs and navigation index when conversation changes
+  useEffect(() => {
+    messageRefs.current = []
+    setCurrentMessageIndex(-1)
+  }, [currentConversation?.id])
+
   const scrollToBottom = () => {
     if (!autoScrollRef.current || !messagesEndRef.current) return
     const container = messagesEndRef.current.parentElement
@@ -184,6 +192,51 @@ export default function App() {
       messagesEndRef.current.parentElement.scrollTo({ top: messagesEndRef.current.parentElement.scrollHeight, behavior: 'smooth' })
     }
   }
+
+  // Scroll to a specific message by index
+  const scrollToMessage = (index) => {
+    const refs = messageRefs.current
+    if (refs[index]) {
+      refs[index].scrollIntoView({ behavior: 'smooth', block: 'start' })
+      setCurrentMessageIndex(index)
+    }
+  }
+
+  // Navigate to previous message (w key)
+  const scrollToPreviousMessage = () => {
+    if (!currentConversation?.messages.length) return
+    const newIndex = currentMessageIndex <= 0 ? 0 : currentMessageIndex - 1
+    scrollToMessage(newIndex)
+  }
+
+  // Navigate to next message (s key)
+  const scrollToNextMessage = () => {
+    if (!currentConversation?.messages.length) return
+    const maxIndex = currentConversation.messages.length - 1
+    const newIndex = currentMessageIndex >= maxIndex ? maxIndex : currentMessageIndex + 1
+    scrollToMessage(newIndex)
+  }
+
+  // Keyboard navigation for messages
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if typing in an input
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return
+      }
+
+      if (e.key === 'w' || e.key === 'W') {
+        e.preventDefault()
+        scrollToPreviousMessage()
+      } else if (e.key === 's' || e.key === 'S') {
+        e.preventDefault()
+        scrollToNextMessage()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentConversation?.messages, currentMessageIndex])
 
   // Handler for user scroll - disables auto-scroll
   const handleUserScroll = () => {
@@ -511,17 +564,21 @@ export default function App() {
               <>
                 {currentConversation.messages
                   .filter((msg) => msg.id !== streamingMessageId)
-                  .map((message) => (
-                    <ChatMessage
+                  .map((message, index) => (
+                    <div
                       key={message.id}
-                      message={message}
-                      onRegenerate={
-                        message.role === 'user'
-                          ? () => handleRegenerate(message.id)
-                          : null
-                      }
-                      isGenerating={false}
-                    />
+                      ref={(el) => (messageRefs.current[index] = el)}
+                    >
+                      <ChatMessage
+                        message={message}
+                        onRegenerate={
+                          message.role === 'user'
+                            ? () => handleRegenerate(message.id)
+                            : null
+                        }
+                        isGenerating={false}
+                      />
+                    </div>
                   ))}
 
                 {/* Streaming message (show if we have streaming state and it's not in saved messages) */}

@@ -81,6 +81,7 @@ function CodeBlock({ language, codeString }) {
 export default function ChatMessage({ message, onRegenerate, isGenerating }) {
   const isUser = message.role === 'user'
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false)
 
   // Pre-parse checkbox positions from content for stable indexing
   const checkboxPositions = useMemo(() => {
@@ -155,12 +156,20 @@ export default function ChatMessage({ message, onRegenerate, isGenerating }) {
           {/* Thinking (if present) */}
           {message.thinking && !isCollapsed && (
             <div className="mb-3 p-3 bg-blue-50 border-l-4 border-blue-300 rounded-r-lg">
-              <div className="flex items-center gap-1 text-xs font-medium text-blue-600 mb-1">
+              <div
+                onClick={() => setIsThinkingCollapsed(c => !c)}
+                className="flex items-center gap-1 text-xs font-medium text-blue-600 mb-1 cursor-pointer hover:bg-blue-100 hover:px-1 hover:rounded transition-colors"
+              >
                 <span>💭</span> Thinking
+                <span className={`ml-auto transition-transform ${isThinkingCollapsed ? 'rotate-180' : ''}`}>
+                  ▼
+                </span>
               </div>
-              <div className="text-sm text-gray-700 whitespace-pre-wrap break-words">
-                {message.thinking}
-              </div>
+              {!isThinkingCollapsed && (
+                <div className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                  {message.thinking}
+                </div>
+              )}
             </div>
           )}
 
