@@ -171,18 +171,17 @@ export default function App() {
 
   const scrollToBottom = () => {
     if (!autoScrollRef.current || !messagesEndRef.current) return
-    // Only scroll if user is already near the bottom (within ~100px)
     const container = messagesEndRef.current.parentElement
     const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
     if (distanceFromBottom > 100) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' })
     }
   }
 
   // Scroll to bottom unconditionally (used on stream end)
   const scrollToBottomForced = () => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      messagesEndRef.current.parentElement.scrollTo({ top: messagesEndRef.current.parentElement.scrollHeight, behavior: 'smooth' })
     }
   }
 
@@ -333,13 +332,38 @@ export default function App() {
     // Scroll to user message immediately
     setTimeout(scrollToBottom, 0)
 
+    // Optimistically add assistant message placeholder (avatar + name show immediately)
+    const assistantMsgId = `optimistic-${Date.now()}`
+    setCurrentConversation((prev) => ({
+      ...prev,
+      messages: [
+        ...prev.messages,
+        {
+          id: assistantMsgId,
+          role: 'assistant',
+          content: '',
+          thinking: null,
+          created_at: new Date().toISOString(),
+          complete: false,
+          isGenerating: true,
+        },
+      ],
+    }))
+
     // Stream the response
     await api.sendMessageStreamFetch(
       conversationId,
       message,
       {
         signal: abortController.signal,
-        onStart: ({ message_id, title }) => {
+        onStart: ({ message_id, title, tempAssistantMsgId }) => {
+          // Update optimistic assistant message to use real ID, then stream takes over
+          setCurrentConversation((prev) => ({
+            ...prev,
+            messages: prev.messages.map((m) =>
+              m.id === tempAssistantMsgId ? { ...m, id: message_id } : m
+            ),
+          }))
           setStreamingMessageId(message_id)
           if (title && title !== conversationTitle) {
             setCurrentConversation((prev) => ({ ...prev, title }))
@@ -385,8 +409,15 @@ export default function App() {
           setStreamingThinking('')
           setStreamingMessageId(null)
           setIsGenerating(false)
+          // Remove optimistic assistant message on error
+          setCurrentConversation((prev) => ({
+            ...prev,
+            messages: prev.messages.filter((m) => !m.id.startsWith('optimistic-')),
+          }))
         },
-      }
+      },
+      false,
+      assistantMsgId
     )
   }
 
@@ -474,7 +505,7 @@ export default function App() {
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto" onWheel={handleUserScroll} onTouchMove={handleUserScroll}>
+        <div className="flex-1 overflow-y-auto pb-[60px] bg-gray-50" onWheel={handleUserScroll} onTouchMove={handleUserScroll}>
           {currentConversation ? (
             currentConversation.messages.length > 0 || streamingMessageId ? (
               <>
