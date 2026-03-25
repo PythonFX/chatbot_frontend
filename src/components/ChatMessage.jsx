@@ -80,6 +80,7 @@ function CodeBlock({ language, codeString }) {
 
 export default function ChatMessage({ message, onRegenerate, isGenerating }) {
   const isUser = message.role === 'user'
+  const [isCollapsed, setIsCollapsed] = useState(false)
 
   // Pre-parse checkbox positions from content for stable indexing
   const checkboxPositions = useMemo(() => {
@@ -120,9 +121,10 @@ export default function ChatMessage({ message, onRegenerate, isGenerating }) {
 
   return (
     <div className={`flex gap-4 p-4 ${isUser ? 'bg-white' : 'bg-gray-50'}`}>
-      {/* Avatar */}
+      {/* Avatar - double click to collapse */}
       <div
-        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+        onDoubleClick={() => setIsCollapsed(c => !c)}
+        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center cursor-pointer ${
           isUser ? 'bg-blue-500' : 'bg-green-500'
         }`}
       >
@@ -143,24 +145,32 @@ export default function ChatMessage({ message, onRegenerate, isGenerating }) {
               <RotateCcw size={14} />
             </button>
           )}
+          {isCollapsed && (
+            <span className="text-xs text-gray-400">(collapsed)</span>
+          )}
         </div>
 
-        {/* Thinking (if present) */}
-        {message.thinking && (
-          <div className="mb-3 p-3 bg-blue-50 border-l-4 border-blue-300 rounded-r-lg">
-            <div className="flex items-center gap-1 text-xs font-medium text-blue-600 mb-1">
-              <span>💭</span> Thinking
+        {/* Collapsible area - double click to collapse */}
+        <div onDoubleClick={() => setIsCollapsed(c => !c)} className="cursor-pointer">
+          {/* Thinking (if present) */}
+          {message.thinking && !isCollapsed && (
+            <div className="mb-3 p-3 bg-blue-50 border-l-4 border-blue-300 rounded-r-lg">
+              <div className="flex items-center gap-1 text-xs font-medium text-blue-600 mb-1">
+                <span>💭</span> Thinking
+              </div>
+              <div className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                {message.thinking}
+              </div>
             </div>
-            <div className="text-sm text-gray-700 whitespace-pre-wrap break-words">
-              {message.thinking}
-            </div>
-          </div>
-        )}
+          )}
 
-        {/* Main content - rendered as markdown */}
-        <div className="text-gray-800 break-words">
-          <MarkdownErrorBoundary content={message.content}>
-            <ReactMarkdown
+          {/* Main content - rendered as markdown */}
+          <div className="text-gray-800 break-words">
+            {isCollapsed ? (
+              <CollapsedContent content={message.content} />
+            ) : (
+              <MarkdownErrorBoundary content={message.content}>
+                <ReactMarkdown
               remarkPlugins={[remarkGfm]}
               components={{
               code({ node, inline, className, children, ...props }) {
@@ -263,9 +273,26 @@ export default function ChatMessage({ message, onRegenerate, isGenerating }) {
           >
             {message.content || ''}
           </ReactMarkdown>
-          </MarkdownErrorBoundary>
+              </MarkdownErrorBoundary>
+            )}
+          </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+// Helper to show collapsed content preview
+function CollapsedContent({ content }) {
+  // Split into lines and limit to ~5 lines max, or half if fewer
+  const lines = content.split('\n')
+  const maxLines = 5
+  const showLines = lines.length <= maxLines ? Math.ceil(lines.length / 2) : maxLines
+  const preview = lines.slice(0, showLines).join('\n')
+
+  return (
+    <div className="relative">
+      <pre className="whitespace-pre-wrap text-sm text-gray-500 break-words">{preview}{lines.length > showLines ? '\n...' : ''}</pre>
     </div>
   )
 }
