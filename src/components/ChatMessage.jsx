@@ -242,22 +242,22 @@ export default function ChatMessage({ message, onRegenerate, isGenerating }) {
                 return <hr className="my-4 border-gray-200" />
               },
               table({ children }) {
-                return <div className="overflow-x-auto my-3 border border-gray-200 rounded-lg">{children}</div>
+                return <div className="overflow-x-auto my-3 inline-block border border-gray-200 rounded-lg">{children}</div>
               },
               thead({ children }) {
-                return <thead className="bg-gray-50">{children}</thead>
+                return <thead className="bg-gray-100">{children}</thead>
               },
               tbody({ children }) {
                 return <tbody>{children}</tbody>
               },
               tr({ children }) {
-                return <tr className="border-b border-gray-100">{children}</tr>
+                return <tr className="hover:bg-gray-50">{children}</tr>
               },
               th({ children }) {
-                return <th className="px-4 py-2 text-left text-sm font-medium text-gray-600">{children}</th>
+                return <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700 bg-gray-100 border-b border-r border-gray-200 last:border-r-0">{children}</th>
               },
               td({ children }) {
-                return <td className="px-4 py-2 text-sm text-gray-700">{children}</td>
+                return <td className="px-4 py-2 text-sm text-gray-600 border-b border-r border-gray-200 last:border-r-0">{children}</td>
               },
             }}
           >

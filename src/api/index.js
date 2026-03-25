@@ -38,7 +38,7 @@ export const api = {
     fetchWithError(`/conversations/${id}`, { method: 'DELETE' }),
 
   // Streaming chat using fetch with ReadableStream and SSE
-  sendMessageStreamFetch: (conversationId, message, callbacks) => {
+  sendMessageStreamFetch: (conversationId, message, callbacks, resume = false) => {
     const { onChunk, onThinking, onDone, onError, onStart, signal } = callbacks
     let streamingMessageId = null
     let fullContent = ''
@@ -55,7 +55,7 @@ export const api = {
     const promise = fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_id: conversationId, message }),
+      body: JSON.stringify({ conversation_id: conversationId, message, resume }),
     })
       .then((response) => {
         if (!response.ok) {
@@ -86,7 +86,7 @@ export const api = {
                   fullContent += data.text
                   onChunk?.(data.text, fullContent)
                 } else if (data.type === 'thinking') {
-                  fullThinking = data.thinking
+                  fullThinking += data.thinking
                   onThinking?.(fullThinking)
                 } else if (data.type === 'done') {
                   onDone?.({ message_id: data.message_id, title: data.title, content: fullContent, thinking: fullThinking })

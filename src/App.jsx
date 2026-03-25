@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Bot, Copy, Check } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -46,6 +47,9 @@ function StreamingCodeBlock({ language, codeString }) {
 }
 
 export default function App() {
+  const { conversationId } = useParams()
+  const navigate = useNavigate()
+  const location = useLocation()
   const [conversations, setConversations] = useState([])
   const [currentConversation, setCurrentConversation] = useState(null)
   const [isGenerating, setIsGenerating] = useState(false)
@@ -57,22 +61,39 @@ export default function App() {
   const [renamingConversationId, setRenamingConversationId] = useState(null)
   const streamAbortRef = useRef(null) // Track ongoing stream request
 
-  // Load conversations on mount and auto-select the latest
+  // Load conversations on mount
   useEffect(() => {
     loadConversations()
   }, [])
 
-  // Auto-select latest conversation when conversations are loaded
+  // Load conversation from URL when it changes
+  // Extract conversationId directly from pathname to avoid useParams() timing issues
   useEffect(() => {
-    if (!currentConversation && conversations.length > 0) {
-      const latestConv = conversations[0]
-      api.getConversation(latestConv.id).then(conv => {
+    const match = location.pathname.match(/^\/conversation\/([^/]+)$/)
+    const urlConversationId = match ? match[1] : null
+
+    if (urlConversationId) {
+      api.getConversation(urlConversationId).then(conv => {
         setCurrentConversation(conv)
+      }).catch(err => {
+        setError('Failed to load conversation: ' + err.message)
+        if (err.message.includes('404') || err.message.includes('not found')) {
+          navigate('/', { replace: true })
+        }
       })
     }
-  }, [conversations.length])
+  }, [location.pathname, navigate])
 
-  // Check if current conversation has incomplete message and set up streaming state
+  // Auto-select latest conversation only when on root path
+  useEffect(() => {
+    const isOnRoot = location.pathname === '/' || location.pathname === ''
+    if (isOnRoot && conversations.length > 0 && !currentConversation) {
+      const latestConv = conversations[0]
+      navigate(`/conversation/${latestConv.id}`, { replace: true })
+    }
+  }, [conversations.length, currentConversation, location.pathname, navigate])
+
+  // Check if current conversation has incomplete message and resume streaming
   useEffect(() => {
     if (currentConversation) {
       const incompleteMsg = currentConversation.messages.find(m => !m.complete && m.role === 'assistant')
@@ -81,6 +102,55 @@ export default function App() {
         setStreamingContent(incompleteMsg.content)
         setStreamingThinking(incompleteMsg.thinking || '')
         setIsGenerating(true)
+
+        // Resume the stream subscription
+        const abortController = new AbortController()
+        streamAbortRef.current = abortController
+
+        api.sendMessageStreamFetch(
+          currentConversation.id,
+          '',  // Empty message for resume
+          {
+            signal: abortController.signal,
+            onStart: ({ message_id, title }) => {
+              // Update title if changed
+              if (title && title !== currentConversation.title) {
+                setCurrentConversation((prev) => ({ ...prev, title }))
+              }
+              // Content will come as chunks (including accumulated content as first chunk)
+            },
+            onChunk: (text, fullContent) => {
+              setStreamingContent(fullContent)
+            },
+            onThinking: (thinking) => {
+              setStreamingThinking(thinking)
+            },
+            onDone: async ({ message_id, title, content, stopped }) => {
+              streamAbortRef.current = null
+              // Clear streaming state
+              setStreamingContent('')
+              setStreamingThinking('')
+              setStreamingMessageId(null)
+              setIsGenerating(false)
+              if (!stopped) {
+                // Refresh conversation to get the complete saved message
+                try {
+                  const updatedConv = await api.getConversation(currentConversation.id)
+                  setCurrentConversation(updatedConv)
+                  await loadConversations()
+                } catch (e) {
+                  console.error('Failed to refresh conversation:', e)
+                }
+              }
+            },
+            onError: (errMsg) => {
+              streamAbortRef.current = null
+              console.error('Stream resume error:', errMsg)
+              setIsGenerating(false)
+            },
+          },
+          true  // resume = true
+        )
       }
     }
   }, [currentConversation?.id])
@@ -106,6 +176,7 @@ export default function App() {
       const newConv = await api.createConversation()
       await loadConversations()
       setCurrentConversation({ ...newConv, messages: [] })
+      navigate(`/conversation/${newConv.id}`)
       setError(null)
     } catch (err) {
       setError('Failed to create conversation: ' + err.message)
@@ -123,6 +194,9 @@ export default function App() {
     setStreamingThinking('')
     setStreamingMessageId(null)
     setIsGenerating(false)
+
+    // Update URL
+    navigate(`/conversation/${id}`)
 
     try {
       const conv = await api.getConversation(id)
@@ -148,6 +222,8 @@ export default function App() {
         setStreamingContent('')
         setStreamingThinking('')
         setStreamingMessageId(null)
+        // Navigate to root so it auto-selects the latest
+        navigate('/', { replace: true })
       }
       setError(null)
     } catch (err) {
@@ -235,16 +311,13 @@ export default function App() {
         onDone: async ({ message_id, title, content, stopped }) => {
           streamAbortRef.current = null
 
-          if (stopped) {
-            // Keep the partial content - it's already saved in backend
-            setIsGenerating(false)
-          } else {
-            // Clear streaming state and refresh conversation to get saved message
-            setStreamingContent('')
-            setStreamingThinking('')
-            setStreamingMessageId(null)
-            setIsGenerating(false)
+          // Always clear streaming state
+          setStreamingContent('')
+          setStreamingThinking('')
+          setStreamingMessageId(null)
+          setIsGenerating(false)
 
+          if (!stopped) {
             // Refresh conversation to get the complete saved message
             try {
               const updatedConv = await api.getConversation(conversationId)
