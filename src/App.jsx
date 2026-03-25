@@ -60,6 +60,8 @@ export default function App() {
   const messagesEndRef = useRef(null)
   const [renamingConversationId, setRenamingConversationId] = useState(null)
   const streamAbortRef = useRef(null) // Track ongoing stream request
+  const autoScrollRef = useRef(true) // Auto-scroll during streaming, disabled on user scroll
+  const chunkTextLenRef = useRef(0) // Accumulated text length for scroll triggering
 
   // Load conversations on mount
   useEffect(() => {
@@ -103,6 +105,10 @@ export default function App() {
         setStreamingThinking(incompleteMsg.thinking || '')
         setIsGenerating(true)
 
+        // Reset auto-scroll for resumed stream
+        autoScrollRef.current = true
+        chunkTextLenRef.current = incompleteMsg.content.length
+
         // Resume the stream subscription
         const abortController = new AbortController()
         streamAbortRef.current = abortController
@@ -121,13 +127,21 @@ export default function App() {
             },
             onChunk: (text, fullContent) => {
               setStreamingContent(fullContent)
+              // Throttled scroll: only scroll when we've accumulated ~100+ new chars
+              const newLen = fullContent.length
+              if (newLen - chunkTextLenRef.current >= 100) {
+                scrollToBottom()
+                chunkTextLenRef.current = newLen
+              }
             },
             onThinking: (thinking) => {
               setStreamingThinking(thinking)
+              scrollToBottom()
             },
             onDone: async ({ message_id, title, content, stopped }) => {
               streamAbortRef.current = null
-              // Clear streaming state
+              // Scroll to bottom after markdown rendering settles
+              setTimeout(scrollToBottomForced, 50)
               setStreamingContent('')
               setStreamingThinking('')
               setStreamingMessageId(null)
@@ -154,6 +168,28 @@ export default function App() {
       }
     }
   }, [currentConversation?.id])
+
+  const scrollToBottom = () => {
+    if (!autoScrollRef.current || !messagesEndRef.current) return
+    // Only scroll if user is already near the bottom (within ~100px)
+    const container = messagesEndRef.current.parentElement
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+    if (distanceFromBottom > 100) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }
+
+  // Scroll to bottom unconditionally (used on stream end)
+  const scrollToBottomForced = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' })
+    }
+  }
+
+  // Handler for user scroll - disables auto-scroll
+  const handleUserScroll = () => {
+    autoScrollRef.current = false
+  }
 
   const loadConversations = async () => {
     try {
@@ -272,6 +308,10 @@ export default function App() {
     setStreamingThinking('')
     setStreamingMessageId(null)
 
+    // Reset auto-scroll for new stream
+    autoScrollRef.current = true
+    chunkTextLenRef.current = 0
+
     // Create abort controller for this stream
     const abortController = new AbortController()
     streamAbortRef.current = abortController
@@ -290,6 +330,9 @@ export default function App() {
       messages: [...prev.messages, userMsg],
     }))
 
+    // Scroll to user message immediately
+    setTimeout(scrollToBottom, 0)
+
     // Stream the response
     await api.sendMessageStreamFetch(
       conversationId,
@@ -304,14 +347,21 @@ export default function App() {
         },
         onChunk: (text, fullContent) => {
           setStreamingContent(fullContent)
+          // Throttled scroll: only scroll when we've accumulated ~100+ new chars
+          const newLen = fullContent.length
+          if (newLen - chunkTextLenRef.current >= 100) {
+            scrollToBottom()
+            chunkTextLenRef.current = newLen
+          }
         },
         onThinking: (thinking) => {
           setStreamingThinking(thinking)
+          scrollToBottom()
         },
         onDone: async ({ message_id, title, content, stopped }) => {
           streamAbortRef.current = null
-
-          // Always clear streaming state
+          // Scroll to bottom after markdown rendering settles
+          setTimeout(scrollToBottomForced, 50)
           setStreamingContent('')
           setStreamingThinking('')
           setStreamingMessageId(null)
@@ -424,7 +474,7 @@ export default function App() {
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto" onWheel={handleUserScroll} onTouchMove={handleUserScroll}>
           {currentConversation ? (
             currentConversation.messages.length > 0 || streamingMessageId ? (
               <>
