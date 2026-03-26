@@ -7,9 +7,23 @@ export default function SearchPopup({ onClose, onSelectResult }) {
   const [results, setResults] = useState([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(0)
+  const [popupHeight, setPopupHeight] = useState(0)
   const inputRef = useRef(null)
   const resultsRef = useRef(null)
   const debounceRef = useRef(null)
+  const popupRef = useRef(null)
+
+  // Track popup height to determine position
+  useEffect(() => {
+    if (!popupRef.current) return
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setPopupHeight(entry.contentRect.height)
+      }
+    })
+    observer.observe(popupRef.current)
+    return () => observer.disconnect()
+  }, [])
 
   // Focus input on mount
   useEffect(() => {
@@ -67,13 +81,20 @@ export default function SearchPopup({ onClose, onSelectResult }) {
     onSelectResult(result)
   }
 
+  // Determine top position based on popup height
+  // If popup height > 60vh, use 12vh; otherwise use 20vh
+  const topPercent = popupHeight > window.innerHeight * 0.6 ? '12vh' : '20vh'
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]">
+    <div className="fixed inset-0 z-50 flex items-start justify-center" style={{ paddingTop: topPercent }}>
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/30" onClick={onClose} />
 
       {/* Popup */}
-      <div className="relative bg-white rounded-xl shadow-2xl w-[50vw] max-w-2xl overflow-hidden z-10">
+      <div
+        ref={popupRef}
+        className="relative bg-white rounded-xl shadow-2xl w-[50vw] max-w-3xl overflow-hidden z-10 max-lg:w-[75vw] max-lg:max-w-none max-sm:w-[90vw] max-h-[75vh] flex flex-col"
+      >
         {/* Search input row */}
         <div className="flex items-center px-4 py-3 border-b border-gray-200">
           <Search size={18} className="text-gray-400 flex-shrink-0" />
@@ -101,7 +122,7 @@ export default function SearchPopup({ onClose, onSelectResult }) {
         {/* Results */}
         <div
           ref={resultsRef}
-          className="max-h-[40vh] overflow-y-auto bg-gray-50"
+          className="flex-1 overflow-y-auto bg-gray-50 min-h-0"
         >
           {results.length > 0 ? (
             results.map((result, index) => (
@@ -127,8 +148,23 @@ export default function SearchPopup({ onClose, onSelectResult }) {
                     {result.conversation_title}
                   </span>
                 </div>
-                <div className="text-sm text-gray-700 truncate whitespace-nowrap">
-                  {result.full_context}
+                {/* 3-line display */}
+                <div className="text-xs text-gray-700 leading-relaxed">
+                  {/* Line 1: context before */}
+                  <div className="truncate whitespace-nowrap">
+                    {result.context_before.length > 50 ? '...' : ''}{result.context_before.slice(-50)}
+                  </div>
+                  {/* Line 2: context before end + keyword (highlighted) + context after start */}
+                  <div className="truncate whitespace-nowrap font-medium">
+                    {result.context_before.slice(-30)}
+                    <span className="bg-yellow-200 font-bold">{result.matched_text}</span>
+                    {result.context_after.slice(0, 30)}
+                  </div>
+                  {/* Line 3: context after */}
+                  <div className="truncate whitespace-nowrap">
+                    {result.context_after.slice(30)}
+                    {result.context_after.length > 50 ? '...' : ''}
+                  </div>
                 </div>
               </div>
             ))
@@ -143,7 +179,6 @@ export default function SearchPopup({ onClose, onSelectResult }) {
   )
 }
 
-// Custom hook for debounced search
 function useSearch(query, setIsLoading, onResults, debounceRef) {
   useEffect(() => {
     if (!query || query.trim().length === 0) {

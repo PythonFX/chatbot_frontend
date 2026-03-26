@@ -34,12 +34,85 @@ export const api = {
   autoRenameConversation: (id) =>
     fetchWithError(`/conversations/${id}/auto-rename`, { method: 'POST' }),
 
+  updateConversationFiles: (id, fileIds) =>
+    fetchWithError(`/conversations/${id}/files`, {
+      method: 'PATCH',
+      body: JSON.stringify({ file_ids: fileIds }),
+    }),
+
   deleteConversation: (id) =>
     fetchWithError(`/conversations/${id}`, { method: 'DELETE' }),
 
   // Search all conversations for a query
   searchConversations: (query) =>
     fetchWithError(`/conversations/search?q=${encodeURIComponent(query)}`),
+
+  // Files
+  getFiles: async () => {
+    const res = await fetchWithError('/files')
+    // Map backend field names to frontend expected names
+    return (res.files || []).map(f => ({
+      id: f.id,
+      name: f.filename,
+      type: f.file_type,
+      size: f.size,
+      uploaded_at: f.uploaded_at,
+      status: f.status,
+      error: f.error,
+      chunk_count: f.chunk_count,
+      text_preview: f.text_preview,
+    }))
+  },
+
+  getFile: async (id) => {
+    const f = await fetchWithError(`/files/${id}`)
+    return {
+      id: f.id,
+      name: f.filename,
+      type: f.file_type,
+      size: f.size,
+      uploaded_at: f.uploaded_at,
+      status: f.status,
+      error: f.error,
+      chunk_count: f.chunk_count,
+      text_preview: f.text_preview,
+    }
+  },
+
+  getFile: (id) => fetchWithError(`/files/${id}`),
+
+  uploadFile: async (file, onProgress) => {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await fetch(`${API_BASE}/files/upload`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Upload failed' }))
+      throw new Error(error.detail || `HTTP ${response.status}`)
+    }
+
+    return response.json()
+  },
+
+  deleteFile: (id) => fetchWithError(`/files/${id}`, { method: 'DELETE' }),
+
+  // Load file embeddings into memory
+  loadFile: (id) => fetchWithError(`/files/load/${id}`, { method: 'POST' }),
+
+  loadAllFiles: () => fetchWithError('/files/load-all', { method: 'POST' }),
+
+  unloadFile: (id) => fetchWithError(`/files/unload/${id}`, { method: 'POST' }),
+
+  // Search files by semantic similarity
+  searchFiles: (query, topK = 5) =>
+    fetchWithError('/files/search', {
+      method: 'POST',
+      body: JSON.stringify({ query, top_k: topK }),
+    }),
 
   // Streaming chat using fetch with ReadableStream and SSE
   sendMessageStreamFetch: (conversationId, message, callbacks, resume = false, tempAssistantMsgId = null) => {

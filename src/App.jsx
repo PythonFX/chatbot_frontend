@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { Bot, Copy, Check } from 'lucide-react'
+import { Bot, Copy, Check, Upload, X, FileText, MessageSquare, RefreshCw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -8,6 +8,7 @@ import Sidebar from './components/Sidebar'
 import ChatMessage from './components/ChatMessage'
 import MessageInput from './components/MessageInput'
 import SearchPopup from './components/SearchPopup'
+import FilesList from './components/FilesList'
 import { api } from './api'
 
 function StreamingCodeBlock({ language, codeString }) {
@@ -68,6 +69,33 @@ export default function App() {
   const [collapsedMessages, setCollapsedMessages] = useState(new Set()) // Set of collapsed message IDs
   const [contextMenu, setContextMenu] = useState(null) // { x, y } for context menu position
   const [searchPopupOpen, setSearchPopupOpen] = useState(false)
+  const [uploadedFiles, setUploadedFiles] = useState([])
+  const [uploadingFile, setUploadingFile] = useState(null) // { name, progress } during upload
+  const [selectedFileIds, setSelectedFileIds] = useState([]) // Multi-select for RAG chat
+  const [loadingFiles, setLoadingFiles] = useState(false) // Loading files from backend
+
+  // Derive isFilesView from URL
+  const isFilesView = location.pathname === '/files'
+
+  // Load files when on files view
+  useEffect(() => {
+    if (isFilesView) {
+      loadFiles()
+    }
+  }, [isFilesView])
+
+  const loadFiles = async () => {
+    setLoadingFiles(true)
+    setSelectedFileIds([])
+    try {
+      const files = await api.getFiles()
+      setUploadedFiles(files)
+    } catch (err) {
+      setError('Failed to load files: ' + err.message)
+    } finally {
+      setLoadingFiles(false)
+    }
+  }
 
   // Load conversations on mount
   useEffect(() => {
@@ -91,6 +119,18 @@ export default function App() {
       })
     }
   }, [location.pathname, navigate])
+
+  // When currentConversation changes with file_ids, load those embeddings
+  useEffect(() => {
+    if (currentConversation?.file_ids && currentConversation.file_ids.length > 0) {
+      // Load embeddings for all linked files
+      currentConversation.file_ids.forEach(fileId => {
+        api.loadFile(fileId).catch(err => {
+          console.error('Failed to load file embedding:', fileId, err)
+        })
+      })
+    }
+  }, [currentConversation?.id, currentConversation?.file_ids])
 
   // Auto-select latest conversation only when on root path
   useEffect(() => {
@@ -568,6 +608,110 @@ export default function App() {
     }
   }
 
+  const handleBrowseFiles = () => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.pdf,.doc,.docx,.txt,.json'
+    input.onchange = async (e) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+
+      // Start upload progress simulation
+      setUploadingFile({ name: file.name, progress: 0 })
+
+      // Simulate progress (backend processes async, so we simulate)
+      const progressInterval = setInterval(() => {
+        setUploadingFile(prev => {
+          if (!prev) return null
+          const newProgress = Math.min(prev.progress + Math.random() * 15, 90)
+          return { ...prev, progress: newProgress }
+        })
+      }, 200)
+
+      try {
+        const result = await api.uploadFile(file)
+        clearInterval(progressInterval)
+        setUploadingFile({ name: file.name, progress: 100 })
+
+        setTimeout(async () => {
+          // Refresh files list from backend
+          const files = await api.getFiles()
+          setUploadedFiles(files)
+          setUploadingFile(null)
+        }, 500)
+      } catch (err) {
+        clearInterval(progressInterval)
+        setError('Failed to upload file: ' + err.message)
+        setUploadingFile(null)
+      }
+    }
+    input.click()
+  }
+
+  const handleDeleteFile = async (fileId) => {
+    // Remove from selected if selected
+    setSelectedFileIds(prev => prev.filter(id => id !== fileId))
+
+    try {
+      await api.deleteFile(fileId)
+      setUploadedFiles(prev => prev.filter(f => f.id !== fileId))
+    } catch (err) {
+      setError('Failed to delete file: ' + err.message)
+    }
+  }
+
+  const handleShowFiles = async () => {
+    navigate('/files')
+  }
+
+  const handleCreateChatWithFiles = async () => {
+    if (selectedFileIds.length === 0) return
+
+    try {
+      // Wait for all selected files to be ready (not processing)
+      const MAX_WAIT_TIME = 60000 // 60 seconds max
+      const POLL_INTERVAL = 1000 // 1 second
+
+      for (const fileId of selectedFileIds) {
+        const startTime = Date.now()
+        while (Date.now() - startTime < MAX_WAIT_TIME) {
+          const file = await api.getFile(fileId)
+          if (file.status === 'ready') {
+            break
+          } else if (file.status === 'error') {
+            throw new Error(`File "${file.name}" processing failed: ${file.error}`)
+          }
+          // Wait before polling again
+          await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL))
+        }
+
+        // Check if still processing after max wait
+        const file = await api.getFile(fileId)
+        if (file.status !== 'ready') {
+          throw new Error(`File "${file.name}" is still processing. Please wait and try again.`)
+        }
+      }
+
+      // Now load selected files' embeddings into memory
+      for (const fileId of selectedFileIds) {
+        await api.loadFile(fileId)
+      }
+
+      // Create new conversation
+      const newConv = await api.createConversation()
+
+      // Update conversation with linked file IDs
+      await api.updateConversationFiles(newConv.id, selectedFileIds)
+
+      // Clear selection and switch to chat view
+      setSelectedFileIds([])
+      setCurrentConversation({ ...newConv, messages: [], file_ids: selectedFileIds })
+      navigate(`/conversation/${newConv.id}`)
+    } catch (err) {
+      setError('Failed to start chat with files: ' + err.message)
+    }
+  }
+
   return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
@@ -580,21 +724,70 @@ export default function App() {
         onRenameConversation={handleRenameConversation}
         onAutoRenameConversation={handleAutoRenameConversation}
         renamingConversationId={renamingConversationId}
+        onShowFiles={handleShowFiles}
+        isFilesView={isFilesView}
       />
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <div
-          className="bg-white border-b border-gray-200 px-4 py-3 cursor-pointer"
+          className="bg-white border-b border-gray-200 px-4 py-3 cursor-pointer flex items-center justify-between"
           onContextMenu={(e) => {
             e.preventDefault()
             setContextMenu({ x: e.clientX, y: e.clientY })
           }}
         >
-          <h1 className="font-semibold text-gray-700">
-            {currentConversation?.title || 'Select a conversation'}
-          </h1>
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            {isFilesView ? (
+              <h1 className="font-semibold text-gray-700">Uploaded Files</h1>
+            ) : (
+              <h1 className="font-semibold text-gray-700 truncate">
+                {currentConversation?.title || 'Select a conversation'}
+              </h1>
+            )}
+
+            {/* Upload progress area */}
+            {uploadingFile && (
+              <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-1.5 min-w-0">
+                <FileText size={14} className="text-blue-500 flex-shrink-0" />
+                <span className="text-sm text-blue-700 truncate max-w-32">{uploadingFile.name}</span>
+                <div className="w-20 h-2 bg-blue-200 rounded-full overflow-hidden flex-shrink-0">
+                  <div
+                    className="h-full bg-blue-500 transition-all duration-200 rounded-full"
+                    style={{ width: `${uploadingFile.progress}%` }}
+                  />
+                </div>
+                <span className="text-xs text-blue-500">{Math.round(uploadingFile.progress)}%</span>
+                <button
+                  onClick={() => setUploadingFile(null)}
+                  className="p-0.5 hover:bg-blue-100 rounded"
+                >
+                  <X size={12} className="text-blue-400" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Files view buttons - only show when on /files */}
+          {isFilesView && (
+            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+              <button
+                onClick={loadFiles}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-700"
+                title="Refresh file status"
+              >
+                <RefreshCw size={14} className={loadingFiles ? 'animate-spin' : ''} />
+              </button>
+              <button
+                onClick={handleBrowseFiles}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-700"
+              >
+                <Upload size={14} />
+                <span>Browse Files</span>
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Context Menu */}
@@ -638,7 +831,23 @@ export default function App() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto pb-[60px] bg-gray-50" onWheel={handleUserScroll} onTouchMove={handleUserScroll}>
-          {currentConversation ? (
+          {isFilesView ? (
+            loadingFiles ? (
+              <div className="flex items-center justify-center h-full text-gray-400">
+                <div className="text-center">
+                  <div className="animate-spin w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full mx-auto mb-4" />
+                  <p>Loading files...</p>
+                </div>
+              </div>
+            ) : (
+              <FilesList
+                files={uploadedFiles}
+                selectedIds={selectedFileIds}
+                onSelectionChange={setSelectedFileIds}
+                onDeleteFile={handleDeleteFile}
+              />
+            )
+          ) : currentConversation ? (
             currentConversation.messages.length > 0 || streamingMessageId ? (
               <>
                 {currentConversation.messages
@@ -791,12 +1000,27 @@ export default function App() {
           )}
         </div>
 
-        {/* Input */}
-        <MessageInput
-          onSendMessage={handleSendMessage}
-          onStopGeneration={handleStopGeneration}
-          isGenerating={isGenerating}
-        />
+        {/* Input - hidden when in files view */}
+        {!isFilesView && (
+          <MessageInput
+            onSendMessage={handleSendMessage}
+            onStopGeneration={handleStopGeneration}
+            isGenerating={isGenerating}
+          />
+        )}
+
+        {/* Create Chat with Files button - bottom right overlay */}
+        {isFilesView && selectedFileIds.length > 0 && (
+          <div className="fixed bottom-6 right-6 z-10">
+            <button
+              onClick={handleCreateChatWithFiles}
+              className="flex items-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg shadow-lg transition-colors"
+            >
+              <MessageSquare size={18} />
+              <span>Create Chat with {selectedFileIds.length} File{selectedFileIds.length > 1 ? 's' : ''}</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Search Popup */}

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Trash2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, RefreshCw } from 'lucide-react'
+import { Trash2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, RefreshCw, FolderOpen } from 'lucide-react'
 
 export default function Sidebar({
   conversations,
@@ -10,6 +10,8 @@ export default function Sidebar({
   onRenameConversation,
   onAutoRenameConversation,
   renamingConversationId,
+  onShowFiles,
+  isFilesView,
 }) {
   const [contextMenu, setContextMenu] = useState(null)
   const menuRef = useRef(null)
@@ -119,6 +121,23 @@ export default function Sidebar({
             )}
           </div>
         ))}
+      </div>
+
+      {/* Divider and Files Button */}
+      <div className="px-2 mt-2">
+        <div className="border-t border-gray-700 mb-2" />
+        <button
+          onClick={onShowFiles}
+          className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
+            isFilesView
+              ? 'bg-gray-700 text-white'
+              : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+          }`}
+        >
+          <FolderOpen size={16} className="flex-shrink-0" />
+          <span className="flex-1 truncate text-sm">Files</span>
+        </button>
+        <div className="border-t border-gray-700 mt-2" />
       </div>
 
       {/* Context Menu */}
