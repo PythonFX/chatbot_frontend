@@ -564,7 +564,7 @@ export default function App() {
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <div
-          className="bg-white border-b border-gray-200 px-4 py-3 cursor-context-menu"
+          className="bg-white border-b border-gray-200 px-4 py-3 cursor-pointer"
           onContextMenu={(e) => {
             e.preventDefault()
             setContextMenu({ x: e.clientX, y: e.clientY })
@@ -583,22 +583,22 @@ export default function App() {
               onClick={() => setContextMenu(null)}
             />
             <div
-              className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]"
+              className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 flex flex-col"
               style={{ left: contextMenu.x, top: contextMenu.y }}
             >
               <button
                 onClick={collapseAll}
                 disabled={allCollapsed}
-                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed`}
+                className="px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                折叠全部
+                Collapse All
               </button>
               <button
                 onClick={uncollapseAll}
                 disabled={collapsedMessages.size === 0}
-                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed`}
+                className="px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                展开全部
+                Uncollapse All
               </button>
             </div>
           </>
