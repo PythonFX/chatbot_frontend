@@ -37,6 +37,10 @@ export const api = {
   deleteConversation: (id) =>
     fetchWithError(`/conversations/${id}`, { method: 'DELETE' }),
 
+  // Search all conversations for a query
+  searchConversations: (query) =>
+    fetchWithError(`/conversations/search?q=${encodeURIComponent(query)}`),
+
   // Streaming chat using fetch with ReadableStream and SSE
   sendMessageStreamFetch: (conversationId, message, callbacks, resume = false, tempAssistantMsgId = null) => {
     const { onChunk, onThinking, onDone, onError, onStart, signal } = callbacks

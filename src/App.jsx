@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Bot, Copy, Check } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -7,6 +7,7 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import Sidebar from './components/Sidebar'
 import ChatMessage from './components/ChatMessage'
 import MessageInput from './components/MessageInput'
+import SearchPopup from './components/SearchPopup'
 import { api } from './api'
 
 function StreamingCodeBlock({ language, codeString }) {
@@ -66,6 +67,7 @@ export default function App() {
   const [currentMessageIndex, setCurrentMessageIndex] = useState(-1) // Track current navigated message
   const [collapsedMessages, setCollapsedMessages] = useState(new Set()) // Set of collapsed message IDs
   const [contextMenu, setContextMenu] = useState(null) // { x, y } for context menu position
+  const [searchPopupOpen, setSearchPopupOpen] = useState(false)
 
   // Load conversations on mount
   useEffect(() => {
@@ -224,7 +226,7 @@ export default function App() {
   // Keyboard navigation for messages
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Ignore if typing in an input
+      // Ignore if typing in an input (but still handle Cmd+P for search popup)
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
         return
       }
@@ -241,6 +243,26 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentConversation?.messages, currentMessageIndex])
+
+  // Global keyboard shortcut for search popup (Cmd+P / Ctrl+P)
+  useEffect(() => {
+    const handleSearchShortcut = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+        e.preventDefault()
+        setSearchPopupOpen(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleSearchShortcut)
+    return () => window.removeEventListener('keydown', handleSearchShortcut)
+  }, [])
+
+  // Handler for when a search result is selected
+  const handleSearchSelect = useCallback((result) => {
+    setSearchPopupOpen(false)
+    // Navigate to the conversation containing this message
+    handleSelectConversation(result.conversation_id)
+  }, [])
 
   // Collapse all messages
   const collapseAll = () => {
@@ -776,6 +798,14 @@ export default function App() {
           isGenerating={isGenerating}
         />
       </div>
+
+      {/* Search Popup */}
+      {searchPopupOpen && (
+        <SearchPopup
+          onClose={() => setSearchPopupOpen(false)}
+          onSelectResult={handleSearchSelect}
+        />
+      )}
     </div>
   )
 }
