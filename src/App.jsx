@@ -64,6 +64,8 @@ export default function App() {
   const chunkTextLenRef = useRef(0) // Accumulated text length for scroll triggering
   const messageRefs = useRef([]) // Refs for each message element
   const [currentMessageIndex, setCurrentMessageIndex] = useState(-1) // Track current navigated message
+  const [collapsedMessages, setCollapsedMessages] = useState(new Set()) // Set of collapsed message IDs
+  const [contextMenu, setContextMenu] = useState(null) // { x, y } for context menu position
 
   // Load conversations on mount
   useEffect(() => {
@@ -175,6 +177,8 @@ export default function App() {
   useEffect(() => {
     messageRefs.current = []
     setCurrentMessageIndex(-1)
+    setCollapsedMessages(new Set())
+    setContextMenu(null)
   }, [currentConversation?.id])
 
   const scrollToBottom = () => {
@@ -237,6 +241,24 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentConversation?.messages, currentMessageIndex])
+
+  // Collapse all messages
+  const collapseAll = () => {
+    if (!currentConversation?.messages.length) return
+    const allIds = new Set(currentConversation.messages.map(m => m.id))
+    setCollapsedMessages(allIds)
+    setContextMenu(null)
+  }
+
+  // Uncollapse all messages
+  const uncollapseAll = () => {
+    setCollapsedMessages(new Set())
+    setContextMenu(null)
+  }
+
+  // Check if all messages are collapsed
+  const allCollapsed = currentConversation?.messages.length > 0 &&
+    currentConversation.messages.every(m => collapsedMessages.has(m.id))
 
   // Handler for user scroll - disables auto-scroll
   const handleUserScroll = () => {
@@ -541,11 +563,46 @@ export default function App() {
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Header */}
-        <div className="bg-white border-b border-gray-200 px-4 py-3">
+        <div
+          className="bg-white border-b border-gray-200 px-4 py-3 cursor-context-menu"
+          onContextMenu={(e) => {
+            e.preventDefault()
+            setContextMenu({ x: e.clientX, y: e.clientY })
+          }}
+        >
           <h1 className="font-semibold text-gray-700">
             {currentConversation?.title || 'Select a conversation'}
           </h1>
         </div>
+
+        {/* Context Menu */}
+        {contextMenu && (
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setContextMenu(null)}
+            />
+            <div
+              className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[140px]"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+            >
+              <button
+                onClick={collapseAll}
+                disabled={allCollapsed}
+                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                折叠全部
+              </button>
+              <button
+                onClick={uncollapseAll}
+                disabled={collapsedMessages.size === 0}
+                className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                展开全部
+              </button>
+            </div>
+          </>
+        )}
 
         {/* Error Banner */}
         {error && (
@@ -577,6 +634,18 @@ export default function App() {
                             : null
                         }
                         isGenerating={false}
+                        isCollapsed={collapsedMessages.has(message.id)}
+                        onToggleCollapse={() => {
+                          setCollapsedMessages(prev => {
+                            const next = new Set(prev)
+                            if (next.has(message.id)) {
+                              next.delete(message.id)
+                            } else {
+                              next.add(message.id)
+                            }
+                            return next
+                          })
+                        }}
                       />
                     </div>
                   ))}

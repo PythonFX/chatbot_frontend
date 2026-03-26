@@ -78,9 +78,8 @@ function CodeBlock({ language, codeString }) {
   )
 }
 
-export default function ChatMessage({ message, onRegenerate, isGenerating }) {
+export default function ChatMessage({ message, onRegenerate, isGenerating, isCollapsed, onToggleCollapse }) {
   const isUser = message.role === 'user'
-  const [isCollapsed, setIsCollapsed] = useState(false)
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false)
 
   // Pre-parse checkbox positions from content for stable indexing
@@ -124,7 +123,7 @@ export default function ChatMessage({ message, onRegenerate, isGenerating }) {
     <div className={`flex gap-4 p-4 ${isUser ? 'bg-white' : 'bg-gray-50'}`}>
       {/* Narrow column for double-click collapse */}
       <div
-        onDoubleClick={() => setIsCollapsed(c => !c)}
+        onDoubleClick={onToggleCollapse}
         className="flex-shrink-0 w-12 cursor-pointer flex flex-col items-center justify-start pt-1"
       >
         <div
@@ -160,12 +159,19 @@ export default function ChatMessage({ message, onRegenerate, isGenerating }) {
           <div className="mb-3 p-3 bg-blue-50 border-l-4 border-blue-300 rounded-r-lg">
             <div
               onClick={() => setIsThinkingCollapsed(c => !c)}
-              className="flex items-center gap-1 text-xs font-medium text-blue-600 mb-1 cursor-pointer hover:bg-blue-100 hover:px-1 hover:rounded transition-colors"
+              className="flex items-center gap-1 text-xs font-medium text-blue-600 mb-1 cursor-pointer hover:text-blue-300 transition-colors"
             >
               <span>💭</span> Thinking
-              <span className={`ml-auto transition-transform ${isThinkingCollapsed ? 'rotate-180' : ''}`}>
-                ▼
-              </span>
+              <svg
+                className={`w-2 h-2 transition-transform ${isThinkingCollapsed ? 'rotate-180' : ''}`}
+                viewBox="0 0 8 5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+                style={{ marginTop: '2px' }}
+              >
+                <path d="M1 1 L4 4 L7 1" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </div>
             {!isThinkingCollapsed && (
               <div className="text-sm text-gray-700 whitespace-pre-wrap break-words">
