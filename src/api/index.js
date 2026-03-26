@@ -114,6 +114,10 @@ export const api = {
       body: JSON.stringify({ query, top_k: topK }),
     }),
 
+  // Get RAG contexts used for a specific message
+  getMessageRagContexts: (conversationId, messageId) =>
+    fetchWithError(`/conversations/${conversationId}/messages/${messageId}/rag-contexts`),
+
   // Streaming chat using fetch with ReadableStream and SSE
   sendMessageStreamFetch: (conversationId, message, callbacks, resume = false, tempAssistantMsgId = null) => {
     const { onChunk, onThinking, onDone, onError, onStart, signal } = callbacks
