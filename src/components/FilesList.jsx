@@ -34,7 +34,7 @@ function FileIcon({ type, size = 16 }) {
   return <Icon size={size} className={config.color} />
 }
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, progress }) {
   if (status === 'ready') {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-green-600">
@@ -44,10 +44,23 @@ function StatusBadge({ status }) {
     )
   } else if (status === 'processing') {
     return (
-      <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-        <RefreshCw size={12} className="animate-spin" />
-        Processing
-      </span>
+      <div className="flex flex-col items-center gap-1">
+        <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+          <RefreshCw size={12} className="animate-spin" />
+          Processing
+        </span>
+        {progress != null && (
+          <div className="w-16 h-1 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-blue-500 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        )}
+        {progress != null && (
+          <span className="text-xs text-gray-400">{progress}%</span>
+        )}
+      </div>
     )
   } else if (status === 'error') {
     return (
@@ -181,7 +194,7 @@ export default function FilesList({ files, selectedIds, onSelectionChange, onDel
 
               {/* Status */}
               <div className="w-32 text-center">
-                <StatusBadge status={file.status} />
+                <StatusBadge status={file.status} progress={file.progress} />
               </div>
 
               {/* Date */}

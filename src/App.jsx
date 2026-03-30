@@ -77,10 +77,27 @@ export default function App() {
   // Derive isFilesView from URL
   const isFilesView = location.pathname === '/files'
 
-  // Load files when on files view
+  // Load files when on files view, and poll while files are processing
   useEffect(() => {
-    if (isFilesView) {
-      loadFiles()
+    if (!isFilesView) return
+
+    let timeoutId = null
+
+    const poll = () => {
+      api.getFiles().then(files => {
+        setUploadedFiles(files)
+        setSelectedFileIds([])
+        if (files.some(f => f.status === 'processing')) {
+          timeoutId = setTimeout(poll, 1000)
+        }
+      }).catch(err => {
+        setError('Failed to load files: ' + err.message)
+      })
+    }
+
+    poll()
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId)
     }
   }, [isFilesView])
 
