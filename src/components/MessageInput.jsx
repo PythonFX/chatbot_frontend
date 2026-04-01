@@ -1,7 +1,7 @@
-import { Send, Square } from 'lucide-react'
+import { Send, Square, Flame } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
-export default function MessageInput({ onSendMessage, onStopGeneration, isGenerating }) {
+export default function MessageInput({ onSendMessage, onStopGeneration, isGenerating, deepQAMode, onToggleDeepQAMode }) {
   const [input, setInput] = useState('')
   const textareaRef = useRef(null)
 
@@ -44,6 +44,19 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
           disabled={isGenerating}
         />
         <div className="flex items-center gap-2">
+          {/* Deep QA Mode Toggle */}
+          <button
+            type="button"
+            onClick={onToggleDeepQAMode}
+            className={`p-2 rounded-lg transition-colors ${
+              deepQAMode
+                ? 'text-orange-500 bg-orange-50 hover:bg-orange-100'
+                : 'text-gray-400 hover:bg-gray-100'
+            }`}
+            title={deepQAMode ? 'Deep Q&A Mode (ON)' : 'Deep Q&A Mode (OFF)'}
+          >
+            <Flame size={18} />
+          </button>
           {isGenerating && (
             <button
               type="button"

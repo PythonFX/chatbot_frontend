@@ -121,7 +121,7 @@ export const api = {
     fetchWithError(`/conversations/${conversationId}/messages/${messageId}/rag-contexts`),
 
   // Streaming chat using fetch with ReadableStream and SSE
-  sendMessageStreamFetch: (conversationId, message, callbacks, resume = false, tempAssistantMsgId = null) => {
+  sendMessageStreamFetch: (conversationId, message, callbacks, resume = false, tempAssistantMsgId = null, deepQAMode = false) => {
     const { onChunk, onThinking, onDone, onError, onStart, signal } = callbacks
     let streamingMessageId = null
     let fullContent = ''
@@ -138,7 +138,7 @@ export const api = {
     const promise = fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_id: conversationId, message, resume }),
+      body: JSON.stringify({ conversation_id: conversationId, message, resume, deep_qa_mode: deepQAMode }),
     })
       .then((response) => {
         if (!response.ok) {
@@ -165,6 +165,9 @@ export const api = {
                   streamingMessageId = data.message_id
                   title = data.title
                   onStart?.({ message_id: streamingMessageId, title, tempAssistantMsgId })
+                } else if (data.type === 'deep_qa_status') {
+                  // Handle DeepQA processing status - call callback if provided
+                  callbacks.onDeepQAStatus?.(data)
                 } else if (data.type === 'chunk') {
                   fullContent += data.text
                   onChunk?.(data.text, fullContent)

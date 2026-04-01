@@ -11,6 +11,24 @@ import SearchPopup from './components/SearchPopup'
 import FilesList from './components/FilesList'
 import { api } from './api'
 
+// Animated "Analyzing contexts..." component with cycling dots
+function DeepQAThinking() {
+  const [dotCount, setDotCount] = useState(1)
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setDotCount(prev => prev >= 3 ? 1 : prev + 1)
+    }, 500)
+    return () => clearInterval(interval)
+  }, [])
+
+  return (
+    <span className="text-xs text-orange-500 animate-pulse">
+      Analyzing contexts{'.'.repeat(dotCount)}
+    </span>
+  )
+}
+
 function StreamingCodeBlock({ language, codeString }) {
   const [copied, setCopied] = useState(false)
 
@@ -59,6 +77,7 @@ export default function App() {
   const [streamingContent, setStreamingContent] = useState('')
   const [streamingThinking, setStreamingThinking] = useState('')
   const [streamingMessageId, setStreamingMessageId] = useState(null)
+  const [deepQAStatus, setDeepQAStatus] = useState(null) // 'processing' | 'done' | 'error' | null
   const messagesEndRef = useRef(null)
   const [renamingConversationId, setRenamingConversationId] = useState(null)
   const streamAbortRef = useRef(null) // Track ongoing stream request
@@ -68,6 +87,7 @@ export default function App() {
   const [currentMessageIndex, setCurrentMessageIndex] = useState(-1) // Track current navigated message
   const [collapsedMessages, setCollapsedMessages] = useState(new Set()) // Set of collapsed message IDs
   const [contextMenu, setContextMenu] = useState(null) // { x, y } for context menu position
+  const [deepQAMode, setDeepQAMode] = useState(false) // Deep Q&A mode toggle
   const [searchPopupOpen, setSearchPopupOpen] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [uploadingFile, setUploadingFile] = useState(null) // { name, progress } during upload
@@ -460,6 +480,7 @@ export default function App() {
     setStreamingContent('')
     setStreamingThinking('')
     setStreamingMessageId(null)
+    setDeepQAStatus(null)
 
     // Reset auto-scroll for new stream
     autoScrollRef.current = true
@@ -536,6 +557,15 @@ export default function App() {
           setStreamingThinking(thinking)
           scrollToBottom()
         },
+        onDeepQAStatus: ({ status, message }) => {
+          setDeepQAStatus(status)
+          // When DeepQA processing is done, clear it after a short delay
+          if (status === 'done') {
+            setTimeout(() => setDeepQAStatus(null), 1000)
+          } else if (status === 'error') {
+            setTimeout(() => setDeepQAStatus(null), 3000)
+          }
+        },
         onDone: async ({ message_id, title, content, stopped }) => {
           streamAbortRef.current = null
           // Scroll to bottom after markdown rendering settles
@@ -543,6 +573,7 @@ export default function App() {
           setStreamingContent('')
           setStreamingThinking('')
           setStreamingMessageId(null)
+          setDeepQAStatus(null)
           setIsGenerating(false)
 
           if (!stopped) {
@@ -571,7 +602,8 @@ export default function App() {
         },
       },
       false,
-      assistantMsgId
+      assistantMsgId,
+      deepQAMode
     )
   }
 
@@ -907,7 +939,11 @@ export default function App() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-gray-700">Assistant</span>
-                        <span className="text-xs text-gray-400 animate-pulse">Generating...</span>
+                        {deepQAMode && deepQAStatus === 'processing' ? (
+                          <DeepQAThinking />
+                        ) : (
+                          <span className="text-xs text-gray-400 animate-pulse">Generating...</span>
+                        )}
                       </div>
 
                       {/* Thinking (streamed in quote format) */}
@@ -1023,6 +1059,8 @@ export default function App() {
             onSendMessage={handleSendMessage}
             onStopGeneration={handleStopGeneration}
             isGenerating={isGenerating}
+            deepQAMode={deepQAMode}
+            onToggleDeepQAMode={() => setDeepQAMode(prev => !prev)}
           />
         )}
 
