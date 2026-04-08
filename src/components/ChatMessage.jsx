@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, Component } from 'react'
+import { useState, useMemo, useEffect, useRef, Component } from 'react'
 import { User, Bot, RotateCcw, Copy, Check } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -28,7 +28,7 @@ class MarkdownErrorBoundary extends Component {
   }
 }
 
-function CodeBlock({ language, codeString, isNovelAgentMode }) {
+function CodeBlock({ language, codeString, isNovelAgentMode, isFolded, onFoldToggle }) {
   const [copied, setCopied] = useState(false)
   const [softWrap, setSoftWrap] = useState(isNovelAgentMode)
   const isJson = language === 'json'
@@ -49,17 +49,30 @@ function CodeBlock({ language, codeString, isNovelAgentMode }) {
         <div className="flex items-center gap-2">
           <span>{language || 'code'}</span>
           {isJson && (
-            <button
-              onClick={() => setSoftWrap(w => !w)}
-              className="flex items-center gap-1 hover:text-white transition-colors px-1.5 py-0.5 rounded hover:bg-gray-700"
-              title={softWrap ? 'Disable soft wrap' : 'Enable soft wrap'}
-            >
-              {softWrap ? (
-                <span className="text-xs">Wrap On</span>
-              ) : (
-                <span className="text-xs">Wrap Off</span>
-              )}
-            </button>
+            <>
+              <button
+                onClick={() => setSoftWrap(w => !w)}
+                className="flex items-center gap-1 hover:text-white transition-colors px-1.5 py-0.5 rounded hover:bg-gray-700"
+                title={softWrap ? 'Disable soft wrap' : 'Enable soft wrap'}
+              >
+                {softWrap ? (
+                  <span className="text-xs">Wrap On</span>
+                ) : (
+                  <span className="text-xs">Wrap Off</span>
+                )}
+              </button>
+              <button
+                onClick={onFoldToggle}
+                className="flex items-center gap-1 hover:text-white transition-colors px-1.5 py-0.5 rounded hover:bg-gray-700"
+                title={isFolded ? 'Expand' : 'Collapse'}
+              >
+                {isFolded ? (
+                  <span className="text-xs">Fold On</span>
+                ) : (
+                  <span className="text-xs">Fold Off</span>
+                )}
+              </button>
+            </>
           )}
         </div>
         <button
@@ -80,35 +93,37 @@ function CodeBlock({ language, codeString, isNovelAgentMode }) {
           )}
         </button>
       </div>
-      <div
-        className="code-block-inner"
-        style={{ maxWidth: '100%', overflowX: softWrap ? 'hidden' : 'auto' }}
-      >
-        <SyntaxHighlighter
-          style={oneDark}
-          language={language || 'text'}
-          PreTag="div"
-          customStyle={{
-            margin: 0,
-            borderRadius: 0,
-            maxWidth: '100%',
-            whiteSpace: softWrap ? 'pre-wrap' : 'pre',
-            wordBreak: softWrap ? 'break-all' : 'normal',
-            overflowWrap: 'break-word',
-            boxSizing: 'border-box',
-          }}
-          codeTagProps={{
-            style: {
+      {isFolded ? null : (
+        <div
+          className="code-block-inner"
+          style={{ maxWidth: '100%', overflowX: softWrap ? 'hidden' : 'auto' }}
+        >
+          <SyntaxHighlighter
+            style={oneDark}
+            language={language || 'text'}
+            PreTag="div"
+            customStyle={{
+              margin: 0,
+              borderRadius: 0,
+              maxWidth: '100%',
               whiteSpace: softWrap ? 'pre-wrap' : 'pre',
               wordBreak: softWrap ? 'break-all' : 'normal',
-              maxWidth: '100%',
-              display: 'block',
-            }
-          }}
-        >
-          {codeString}
-        </SyntaxHighlighter>
-      </div>
+              overflowWrap: 'break-word',
+              boxSizing: 'border-box',
+            }}
+            codeTagProps={{
+              style: {
+                whiteSpace: softWrap ? 'pre-wrap' : 'pre',
+                wordBreak: softWrap ? 'break-all' : 'normal',
+                maxWidth: '100%',
+                display: 'block',
+              }
+            }}
+          >
+            {codeString}
+          </SyntaxHighlighter>
+        </div>
+      )}
     </div>
   )
 }
@@ -116,8 +131,13 @@ function CodeBlock({ language, codeString, isNovelAgentMode }) {
 export default function ChatMessage({ message, onRegenerate, isGenerating, isCollapsed, onToggleCollapse, isNovelAgentMode }) {
   const isUser = message.role === 'user'
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false)
+  // folded: Set of JSON block indices that are folded
+  const [folded, setFolded] = useState(new Set())
+  // Stable counter for JSON block indices (resets when message.id changes)
+  const blockIdxRef = useRef(0)
+  useEffect(() => { blockIdxRef.current = 0 }, [message.id])
 
-  // Pre-parse checkbox positions from content for stable indexing
+  // Pre-parse checkbox and JSON code block positions from content for stable indexing
   const checkboxPositions = useMemo(() => {
     const positions = []
     const regex = /\[([ xX])\]/g
@@ -127,6 +147,18 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
         checked: match[1].toLowerCase() === 'x',
         index: positions.length
       })
+    }
+    return positions
+  }, [message.content])
+
+  // Pre-parse JSON code block positions (start indices in content string) for stable fold indexing
+  const jsonBlockPositions = useMemo(() => {
+    const positions = []
+    // Match ```json blocks in content - capture the start index of each block's opening fence
+    const fenceRegex = /```json\n?/g
+    let match
+    while ((match = fenceRegex.exec(message.content)) !== null) {
+      positions.push(match.index)
     }
     return positions
   }, [message.content])
@@ -239,7 +271,17 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
                     }
 
                     // Code block with syntax highlighting and copy button
-                    return <CodeBlock language={match ? match[1] : null} codeString={codeString} isNovelAgentMode={isNovelAgentMode} />
+                    const isJsonLang = match && match[1] === 'json'
+                    const blockKey = isJsonLang ? (jsonBlockPositions[blockIdxRef.current++] ?? null) : null
+                    const isThisFolded = isJsonLang && folded.has(blockKey)
+                    return <CodeBlock language={match ? match[1] : null} codeString={codeString} isNovelAgentMode={isNovelAgentMode} isFolded={isThisFolded} onFoldToggle={isJsonLang ? () => {
+                      setFolded(prev => {
+                        const next = new Set(prev)
+                        if (next.has(blockKey)) next.delete(blockKey)
+                        else next.add(blockKey)
+                        return next
+                      })
+                    } : undefined} />
                   },
                   p({ children }) {
                     return <p className="mb-2 last:mb-0">{children}</p>
