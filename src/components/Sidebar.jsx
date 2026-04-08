@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Trash2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, RefreshCw, FolderOpen } from 'lucide-react'
+import { Trash2, MessageSquare, Plus, MoreHorizontal, Pencil, Trash, RefreshCw, FolderOpen, X } from 'lucide-react'
 
 export default function Sidebar({
   conversations,
@@ -12,6 +12,7 @@ export default function Sidebar({
   renamingConversationId,
   onShowFiles,
   isFilesView,
+  onClose,
 }) {
   const [contextMenu, setContextMenu] = useState(null)
   const menuRef = useRef(null)
@@ -73,7 +74,19 @@ export default function Sidebar({
   }
 
   return (
-    <div className="w-72 h-full bg-gray-900 flex flex-col border-r border-gray-700">
+    <div className="w-72 h-full bg-gray-900 flex flex-col border-r border-gray-700 relative">
+      {/* Mobile close button */}
+      {onClose && (
+        <div className="absolute top-3 right-3 z-10 md:hidden">
+          <button
+            onClick={onClose}
+            className="p-1 text-gray-400 hover:text-white transition-colors"
+            title="Close"
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
       {/* New Chat Button */}
       <div className="p-4">
         <button
@@ -95,6 +108,7 @@ export default function Sidebar({
                 ? 'bg-gray-700 text-white'
                 : 'text-gray-300 hover:bg-gray-800 hover:text-white'
             }`}
+            onClick={() => onSelectConversation(conv.id)}
             onContextMenu={(e) => handleContextMenu(e, conv)}
           >
             {renamingConversationId === conv.id ? (
@@ -102,10 +116,7 @@ export default function Sidebar({
             ) : (
               <MessageSquare size={16} className="flex-shrink-0" />
             )}
-            <span
-              className="flex-1 truncate"
-              onClick={() => onSelectConversation(conv.id)}
-            >
+            <span className="flex-1 truncate">
               {conv.title}
             </span>
             {!renamingConversationId && (

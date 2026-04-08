@@ -92,6 +92,7 @@ export default function App() {
   const [novelAgentMode, setNovelAgentMode] = useState(false) // Novel agent mode
   const [pendingNovelBooks, setPendingNovelBooks] = useState(null) // Book list waiting for selection
   const [searchPopupOpen, setSearchPopupOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [uploadingFile, setUploadingFile] = useState(null) // { name, progress } during upload
   const [selectedFileIds, setSelectedFileIds] = useState([]) // Multi-select for RAG chat
@@ -337,6 +338,17 @@ export default function App() {
     window.addEventListener('keydown', handleSearchShortcut)
     return () => window.removeEventListener('keydown', handleSearchShortcut)
   }, [])
+
+  // Escape key closes mobile sidebar
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && sidebarOpen) {
+        setSidebarOpen(false)
+      }
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [sidebarOpen])
 
   // Handler for when a search result is selected
   const handleSearchSelect = useCallback((result) => {
@@ -776,22 +788,69 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <Sidebar
-        conversations={conversations}
-        currentConversationId={currentConversation?.id}
-        onSelectConversation={handleSelectConversation}
-        onNewConversation={handleNewConversation}
-        onDeleteConversation={handleDeleteConversation}
-        onRenameConversation={handleRenameConversation}
-        onAutoRenameConversation={handleAutoRenameConversation}
-        renamingConversationId={renamingConversationId}
-        onShowFiles={handleShowFiles}
-        isFilesView={isFilesView}
-      />
+      {/* Desktop sidebar - always shown on md+ */}
+      <div className="hidden md:block">
+        <Sidebar
+          conversations={conversations}
+          currentConversationId={currentConversation?.id}
+          onSelectConversation={handleSelectConversation}
+          onNewConversation={handleNewConversation}
+          onDeleteConversation={handleDeleteConversation}
+          onRenameConversation={handleRenameConversation}
+          onAutoRenameConversation={handleAutoRenameConversation}
+          renamingConversationId={renamingConversationId}
+          onShowFiles={handleShowFiles}
+          isFilesView={isFilesView}
+        />
+      </div>
+
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+          <div className="fixed left-0 top-0 h-full z-50 md:hidden">
+            <div className="text-sm">
+              <Sidebar
+              conversations={conversations}
+              currentConversationId={currentConversation?.id}
+              onSelectConversation={(id) => {
+                handleSelectConversation(id)
+                setSidebarOpen(false)
+              }}
+              onNewConversation={() => {
+                handleNewConversation()
+                setSidebarOpen(false)
+              }}
+              onDeleteConversation={handleDeleteConversation}
+              onRenameConversation={handleRenameConversation}
+              onAutoRenameConversation={handleAutoRenameConversation}
+              renamingConversationId={renamingConversationId}
+              onShowFiles={() => {
+                handleShowFiles()
+                setSidebarOpen(false)
+              }}
+              isFilesView={isFilesView}
+              onClose={() => setSidebarOpen(false)}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Floating toggle button - mobile/tablet only */}
+      <button
+        className="fixed bottom-6 right-6 w-14 h-14 bg-blue-500 hover:bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center z-30 md:hidden transition-colors"
+        onClick={() => setSidebarOpen(true)}
+        title="Open chat list"
+      >
+        <MessageSquare size={24} />
+      </button>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col md:text-base text-sm">
         {/* Header */}
         <div
           className="bg-white border-b border-gray-200 px-4 py-3 cursor-pointer flex items-center justify-between"
