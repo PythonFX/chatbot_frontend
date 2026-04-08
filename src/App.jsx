@@ -228,7 +228,7 @@ export default function App() {
             onDone: async ({ message_id, title, content, stopped }) => {
               streamAbortRef.current = null
               // Scroll to bottom after markdown rendering settles
-              setTimeout(scrollToBottomForced, 50)
+              setTimeout(scrollToBottomForced, 200)
               setStreamingContent('')
               setStreamingThinking('')
               setStreamingMessageId(null)
@@ -276,7 +276,7 @@ export default function App() {
   // Scroll to bottom unconditionally (used on stream end)
   const scrollToBottomForced = () => {
     if (messagesEndRef.current) {
-      messagesEndRef.current.parentElement.scrollTo({ top: messagesEndRef.current.parentElement.scrollHeight, behavior: 'smooth' })
+      messagesEndRef.current.parentElement.scrollTo({ top: messagesEndRef.current.parentElement.scrollHeight, behavior: 'instant' })
     }
   }
 
@@ -581,7 +581,7 @@ export default function App() {
         onDone: async ({ message_id, title, content, stopped }) => {
           streamAbortRef.current = null
           // Scroll to bottom after markdown rendering settles
-          setTimeout(scrollToBottomForced, 50)
+          setTimeout(scrollToBottomForced, 200)
           setStreamingContent('')
           setStreamingThinking('')
           setStreamingMessageId(null)
