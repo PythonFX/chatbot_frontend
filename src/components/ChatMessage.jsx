@@ -28,8 +28,10 @@ class MarkdownErrorBoundary extends Component {
   }
 }
 
-function CodeBlock({ language, codeString }) {
+function CodeBlock({ language, codeString, isNovelAgentMode }) {
   const [copied, setCopied] = useState(false)
+  const [softWrap, setSoftWrap] = useState(isNovelAgentMode)
+  const isJson = language === 'json'
 
   const handleCopy = async () => {
     try {
@@ -44,7 +46,22 @@ function CodeBlock({ language, codeString }) {
   return (
     <div className="rounded-lg overflow-hidden my-2 text-sm">
       <div className="bg-gray-800 px-3 py-1 text-gray-400 text-xs flex justify-between items-center">
-        <span>{language || 'code'}</span>
+        <div className="flex items-center gap-2">
+          <span>{language || 'code'}</span>
+          {isJson && (
+            <button
+              onClick={() => setSoftWrap(w => !w)}
+              className="flex items-center gap-1 hover:text-white transition-colors px-1.5 py-0.5 rounded hover:bg-gray-700"
+              title={softWrap ? 'Disable soft wrap' : 'Enable soft wrap'}
+            >
+              {softWrap ? (
+                <span className="text-xs">Wrap On</span>
+              ) : (
+                <span className="text-xs">Wrap Off</span>
+              )}
+            </button>
+          )}
+        </div>
         <button
           onClick={handleCopy}
           className="flex items-center gap-1 hover:text-white transition-colors"
@@ -63,22 +80,40 @@ function CodeBlock({ language, codeString }) {
           )}
         </button>
       </div>
-      <SyntaxHighlighter
-        style={oneDark}
-        language={language || 'text'}
-        PreTag="div"
-        customStyle={{
-          margin: 0,
-          borderRadius: 0,
-        }}
+      <div
+        className="code-block-inner"
+        style={{ maxWidth: '100%', overflowX: softWrap ? 'hidden' : 'auto' }}
       >
-        {codeString}
-      </SyntaxHighlighter>
+        <SyntaxHighlighter
+          style={oneDark}
+          language={language || 'text'}
+          PreTag="div"
+          customStyle={{
+            margin: 0,
+            borderRadius: 0,
+            maxWidth: '100%',
+            whiteSpace: softWrap ? 'pre-wrap' : 'pre',
+            wordBreak: softWrap ? 'break-all' : 'normal',
+            overflowWrap: 'break-word',
+            boxSizing: 'border-box',
+          }}
+          codeTagProps={{
+            style: {
+              whiteSpace: softWrap ? 'pre-wrap' : 'pre',
+              wordBreak: softWrap ? 'break-all' : 'normal',
+              maxWidth: '100%',
+              display: 'block',
+            }
+          }}
+        >
+          {codeString}
+        </SyntaxHighlighter>
+      </div>
     </div>
   )
 }
 
-export default function ChatMessage({ message, onRegenerate, isGenerating, isCollapsed, onToggleCollapse }) {
+export default function ChatMessage({ message, onRegenerate, isGenerating, isCollapsed, onToggleCollapse, isNovelAgentMode }) {
   const isUser = message.role === 'user'
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false)
 
@@ -204,7 +239,7 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
                     }
 
                     // Code block with syntax highlighting and copy button
-                    return <CodeBlock language={match ? match[1] : null} codeString={codeString} />
+                    return <CodeBlock language={match ? match[1] : null} codeString={codeString} isNovelAgentMode={isNovelAgentMode} />
                   },
                   p({ children }) {
                     return <p className="mb-2 last:mb-0">{children}</p>

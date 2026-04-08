@@ -9,6 +9,7 @@ import ChatMessage from './components/ChatMessage'
 import MessageInput from './components/MessageInput'
 import SearchPopup from './components/SearchPopup'
 import FilesList from './components/FilesList'
+import NovelBookPicker from './components/NovelBookPicker'
 import { api } from './api'
 
 // Animated "Analyzing contexts..." component with cycling dots
@@ -88,6 +89,8 @@ export default function App() {
   const [collapsedMessages, setCollapsedMessages] = useState(new Set()) // Set of collapsed message IDs
   const [contextMenu, setContextMenu] = useState(null) // { x, y } for context menu position
   const [deepQAMode, setDeepQAMode] = useState(false) // Deep Q&A mode toggle
+  const [novelAgentMode, setNovelAgentMode] = useState(false) // Novel agent mode
+  const [pendingNovelBooks, setPendingNovelBooks] = useState(null) // Book list waiting for selection
   const [searchPopupOpen, setSearchPopupOpen] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [uploadingFile, setUploadingFile] = useState(null) // { name, progress } during upload
@@ -148,6 +151,7 @@ export default function App() {
     if (urlConversationId) {
       api.getConversation(urlConversationId).then(conv => {
         setCurrentConversation(conv)
+        setNovelAgentMode(conv.is_novel_agent)
       }).catch(err => {
         setError('Failed to load conversation: ' + err.message)
         if (err.message.includes('404') || err.message.includes('not found')) {
@@ -410,6 +414,7 @@ export default function App() {
     try {
       const conv = await api.getConversation(id)
       setCurrentConversation(conv)
+      setNovelAgentMode(conv.is_novel_agent)
       setError(null)
     } catch (err) {
       setError('Failed to load conversation: ' + err.message)
@@ -566,6 +571,13 @@ export default function App() {
             setTimeout(() => setDeepQAStatus(null), 3000)
           }
         },
+        onNovelBooks: (books) => {
+          setPendingNovelBooks(books)
+        },
+        onNovelSelected: (book) => {
+          setPendingNovelBooks(null)
+          setNovelAgentMode(true)
+        },
         onDone: async ({ message_id, title, content, stopped }) => {
           streamAbortRef.current = null
           // Scroll to bottom after markdown rendering settles
@@ -581,6 +593,7 @@ export default function App() {
             try {
               const updatedConv = await api.getConversation(conversationId)
               setCurrentConversation(updatedConv)
+              setNovelAgentMode(updatedConv.is_novel_agent)
               await loadConversations()
             } catch (e) {
               console.error('Failed to refresh conversation:', e)
@@ -926,6 +939,7 @@ export default function App() {
                             return next
                           })
                         }}
+                        isNovelAgentMode={novelAgentMode}
                       />
                     </div>
                   ))}
@@ -1083,6 +1097,20 @@ export default function App() {
         <SearchPopup
           onClose={() => setSearchPopupOpen(false)}
           onSelectResult={handleSearchSelect}
+        />
+      )}
+
+      {/* Novel Book Picker */}
+      {pendingNovelBooks !== null && (
+        <NovelBookPicker
+          books={pendingNovelBooks}
+          onSelect={(number) => {
+            if (number === null) {
+              setPendingNovelBooks(null)
+            } else {
+              handleSendMessage(number)
+            }
+          }}
         />
       )}
     </div>
