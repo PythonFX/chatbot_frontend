@@ -131,13 +131,12 @@ function CodeBlock({ language, codeString, isNovelAgentMode, isFolded, onFoldTog
 export default function ChatMessage({ message, onRegenerate, isGenerating, isCollapsed, onToggleCollapse, isNovelAgentMode }) {
   const isUser = message.role === 'user'
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false)
-  // folded: Set of JSON block indices that are folded
-  const [folded, setFolded] = useState(new Set())
-  // Stable counter for JSON block indices (resets when message.id changes)
-  const blockIdxRef = useRef(0)
-  useEffect(() => { blockIdxRef.current = 0 }, [message.id])
+  // folded: Map of JSON block key -> boolean (true = collapsed)
+  const [folded, setFolded] = useState(new Map())
+  // Generate a stable key from the JSON block's text content
+  const getBlockKey = (codeString) => codeString.slice(0, 50) + '|' + codeString.length
 
-  // Pre-parse checkbox and JSON code block positions from content for stable indexing
+  // Pre-parse checkbox positions from content for stable indexing
   const checkboxPositions = useMemo(() => {
     const positions = []
     const regex = /\[([ xX])\]/g
@@ -147,18 +146,6 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
         checked: match[1].toLowerCase() === 'x',
         index: positions.length
       })
-    }
-    return positions
-  }, [message.content])
-
-  // Pre-parse JSON code block positions (start indices in content string) for stable fold indexing
-  const jsonBlockPositions = useMemo(() => {
-    const positions = []
-    // Match ```json blocks in content - capture the start index of each block's opening fence
-    const fenceRegex = /```json\n?/g
-    let match
-    while ((match = fenceRegex.exec(message.content)) !== null) {
-      positions.push(match.index)
     }
     return positions
   }, [message.content])
@@ -228,7 +215,7 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
               onClick={() => setIsThinkingCollapsed(c => !c)}
               className="flex items-center gap-1 text-xs font-medium text-blue-600 mb-1 cursor-pointer hover:text-blue-300 transition-colors"
             >
-              <span>💭</span> Thinking
+              <span>Thinking</span>
               <svg
                 className={`w-2 h-2 transition-transform ${isThinkingCollapsed ? 'rotate-180' : ''}`}
                 viewBox="0 0 8 5"
@@ -272,21 +259,29 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
 
                     // Code block with syntax highlighting and copy button
                     const isJsonLang = match && match[1] === 'json'
-                    const blockKey = isJsonLang ? (jsonBlockPositions[blockIdxRef.current++] ?? null) : null
-                    const isThisFolded = isJsonLang && folded.has(blockKey)
-                    return <CodeBlock language={match ? match[1] : null} codeString={codeString} isNovelAgentMode={isNovelAgentMode} isFolded={isThisFolded} onFoldToggle={isJsonLang ? () => {
-                      setFolded(prev => {
-                        const next = new Set(prev)
-                        if (next.has(blockKey)) next.delete(blockKey)
-                        else next.add(blockKey)
-                        return next
-                      })
-                    } : undefined} />
+                    // Stable key derived from the JSON content — unique per block
+                    const blockKey = isJsonLang ? getBlockKey(codeString) : null
+                    const isThisFolded = isJsonLang ? !!folded.get(blockKey) : false
+                    return (
+                      <CodeBlock
+                        language={match ? match[1] : null}
+                        codeString={codeString}
+                        isNovelAgentMode={isNovelAgentMode}
+                        isFolded={isThisFolded}
+                        onFoldToggle={isJsonLang ? () => {
+                          setFolded(prev => {
+                            const next = new Map(prev)
+                            next.set(blockKey, !next.get(blockKey))
+                            return next
+                          })
+                        } : undefined}
+                      />
+                    )
                   },
                   p({ children }) {
                     return <p className="mb-2 last:mb-0">{children}</p>
                   },
-                  ul({ children, ...props }) {
+                  ul({ children }) {
                     // Check if this is a task list (contains checkbox inputs)
                     const childrenStr = String(children || '')
                     const isTaskList = childrenStr.includes('type="checkbox"')
@@ -298,7 +293,7 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
                   ol({ children }) {
                     return <ol className="list-decimal list-inside mb-2 space-y-1">{children}</ol>
                   },
-                  li({ children, ...props }) {
+                  li({ children }) {
                     return (
                       <li className="text-gray-700 flex items-start gap-2">
                         {children}
