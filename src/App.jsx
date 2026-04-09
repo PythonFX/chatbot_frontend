@@ -282,43 +282,71 @@ export default function App() {
   }
 
   // Scroll to a specific message by index
-  const scrollToMessage = (index) => {
-    const refs = messageRefs.current
-    if (refs[index]) {
-      refs[index].scrollIntoView({ behavior: 'smooth', block: 'start' })
-      setCurrentMessageIndex(index)
+  // Sync currentMessageIndex with actual scroll position via scroll position tracking
+  useEffect(() => {
+    const container = messagesEndRef.current?.parentElement
+    if (!container) return
+
+    const updateIndexFromScroll = () => {
+      const containerRect = container.getBoundingClientRect()
+      const viewportCenter = containerRect.top + containerRect.height / 2
+
+      let closestIdx = -1
+      let closestDist = Infinity
+      messageRefs.current.forEach((el, idx) => {
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        const elTop = rect.top - containerRect.top + container.scrollTop
+        const elMid = elTop + rect.height / 2
+        const dist = Math.abs(elMid - viewportCenter)
+        if (dist < closestDist) {
+          closestDist = dist
+          closestIdx = idx
+        }
+      })
+
+      if (closestIdx !== -1 && closestIdx !== currentMessageIndex) {
+        setCurrentMessageIndex(closestIdx)
+      }
     }
-  }
 
-  // Navigate to previous message (w key)
-  const scrollToPreviousMessage = () => {
-    if (!currentConversation?.messages.length) return
-    const newIndex = currentMessageIndex <= 0 ? 0 : currentMessageIndex - 1
-    scrollToMessage(newIndex)
-  }
+    // Initial update
+    updateIndexFromScroll()
 
-  // Navigate to next message (s key)
-  const scrollToNextMessage = () => {
-    if (!currentConversation?.messages.length) return
-    const maxIndex = currentConversation.messages.length - 1
-    const newIndex = currentMessageIndex >= maxIndex ? maxIndex : currentMessageIndex + 1
-    scrollToMessage(newIndex)
-  }
+    // Update on scroll
+    container.addEventListener('scroll', updateIndexFromScroll, { passive: true })
+    return () => container.removeEventListener('scroll', updateIndexFromScroll)
+  }, [currentConversation?.messages])
 
-  // Keyboard navigation for messages
+  // Keyboard navigation for messages (w/s and arrow keys)
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Ignore if typing in an input (but still handle Cmd+P for search popup)
+      // Ignore if typing in an input
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
         return
       }
 
-      if (e.key === 'w' || e.key === 'W') {
+      const messages = currentConversation?.messages
+      if (!messages?.length) return
+
+      const refs = messageRefs.current
+      const maxIndex = messages.length - 1
+
+      const isPrev = e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp'
+      const isNext = e.key === 's' || e.key === 'S' || e.key === 'ArrowDown'
+
+      if (isPrev) {
         e.preventDefault()
-        scrollToPreviousMessage()
-      } else if (e.key === 's' || e.key === 'S') {
+        const newIndex = currentMessageIndex <= 0 ? 0 : currentMessageIndex - 1
+        if (refs[newIndex]) {
+          refs[newIndex].scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      } else if (isNext) {
         e.preventDefault()
-        scrollToNextMessage()
+        const newIndex = currentMessageIndex >= maxIndex ? maxIndex : currentMessageIndex + 1
+        if (refs[newIndex]) {
+          refs[newIndex].scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
       }
     }
 
