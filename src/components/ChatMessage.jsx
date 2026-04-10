@@ -44,7 +44,7 @@ function CodeBlock({ language, codeString, isNovelAgentMode, isFolded, onFoldTog
   }
 
   return (
-    <div className="rounded-lg overflow-hidden my-2 text-sm">
+    <div className="rounded-lg overflow-visible my-2 text-sm inline-block max-w-full">
       <div className="bg-gray-800 px-3 py-1 text-gray-400 text-xs flex justify-between items-center">
         <div className="flex items-center gap-2">
           <span>{language || 'code'}</span>
@@ -96,7 +96,7 @@ function CodeBlock({ language, codeString, isNovelAgentMode, isFolded, onFoldTog
       {isFolded ? null : (
         <div
           className="code-block-inner"
-          style={{ maxWidth: '100%', overflowX: softWrap ? 'hidden' : 'auto' }}
+          style={{ overflowX: softWrap ? 'hidden' : 'auto', maxWidth: '100%' }}
         >
           <SyntaxHighlighter
             style={oneDark}
@@ -105,17 +105,18 @@ function CodeBlock({ language, codeString, isNovelAgentMode, isFolded, onFoldTog
             customStyle={{
               margin: 0,
               borderRadius: 0,
-              maxWidth: '100%',
+              maxWidth: 'none',
               whiteSpace: softWrap ? 'pre-wrap' : 'pre',
               wordBreak: softWrap ? 'break-all' : 'normal',
               overflowWrap: 'break-word',
               boxSizing: 'border-box',
+              display: 'inline-block',
+              minWidth: 'min-content',
             }}
             codeTagProps={{
               style: {
                 whiteSpace: softWrap ? 'pre-wrap' : 'pre',
                 wordBreak: softWrap ? 'break-all' : 'normal',
-                maxWidth: '100%',
                 display: 'block',
               }
             }}
@@ -210,7 +211,7 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
 
         {/* Thinking (if present) */}
         {message.thinking && !isCollapsed && (
-          <div className="mb-3 p-3 bg-blue-50 border-l-4 border-blue-300 rounded-r-lg">
+          <div className="mb-3 p-3 bg-blue-50 border-l-4 border-blue-300 rounded-r-lg inline-block max-w-full">
             <div
               onClick={() => setIsThinkingCollapsed(c => !c)}
               className="flex items-center gap-1 text-xs font-medium text-blue-600 mb-1 cursor-pointer hover:text-blue-300 transition-colors"
