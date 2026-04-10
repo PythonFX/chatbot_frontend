@@ -27,7 +27,7 @@ export default function NovelBookPicker({ books, onSelect }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
-      <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+      <div className="bg-white rounded-xl shadow-2xl p-6 max-w-2xl w-full mx-4">
         {/* Header */}
         <div className="flex items-center justify-between mb-5">
           <div className="flex items-center gap-3">
@@ -48,26 +48,28 @@ export default function NovelBookPicker({ books, onSelect }) {
           </button>
         </div>
 
-        {/* Book list */}
-        <div className="space-y-2 mb-5">
-          {books.map((book, i) => (
-            <button
-              key={book.id}
-              onClick={() => onSelect(String(i + 1))}
-              className={`w-full text-left px-4 py-3 rounded-lg border transition-colors ${
-                selectedIndex === i
-                  ? 'border-indigo-400 bg-indigo-50'
-                  : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-600 text-white text-sm font-medium flex items-center justify-center">
-                  {i + 1}
-                </span>
-                <span className="font-medium text-gray-700 truncate">{book.title}</span>
-              </div>
-            </button>
-          ))}
+        {/* Book list - 2 columns, scrollable, max 70vh */}
+        <div className="mb-5 max-h-[70vh] overflow-y-auto">
+          <div className="grid grid-cols-2 gap-2">
+            {books.map((book, i) => (
+              <button
+                key={book.id}
+                onClick={() => onSelect(String(i + 1))}
+                className={`w-full text-left px-3 py-2.5 rounded-lg border transition-colors ${
+                  selectedIndex === i
+                    ? 'border-indigo-400 bg-indigo-50'
+                    : 'border-gray-200 hover:border-indigo-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-medium flex items-center justify-center">
+                    {i + 1}
+                  </span>
+                  <span className="font-medium text-gray-700 text-sm break-words">{book.title}</span>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Number input hint */}
