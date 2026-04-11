@@ -238,6 +238,10 @@ export const api = {
       body: JSON.stringify({ conversation_id: conversationId, message_id: messageId }),
     }),
 
-  stopGeneration: (conversationId) =>
-    fetchWithError(`/chat/stop/${conversationId}`, { method: 'POST' }),
+  // Model switch
+  switchModel: (model) =>
+    fetchWithError('/model/switch', {
+      method: 'POST',
+      body: JSON.stringify({ model }),
+    }),
 }

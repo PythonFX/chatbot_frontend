@@ -12,6 +12,34 @@ import FilesList from './components/FilesList'
 import NovelBookPicker from './components/NovelBookPicker'
 import { api } from './api'
 
+// Model switcher dropdown
+function ModelSwitcher({ currentModel, onSwitch, onClose }) {
+  const models = [
+    { id: 'minimax-m2.7', label: 'Minimax M2.7' },
+    { id: 'glm-5.1', label: 'GLM-5.1' },
+  ]
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="fixed z-50 top-14 right-4 bg-white border border-gray-200 rounded-lg shadow-lg py-1 min-w-[160px]">
+        {models.map(m => (
+          <button
+            key={m.id}
+            onClick={() => { onSwitch(m.id); onClose() }}
+            className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 flex items-center justify-between ${
+              m.id === currentModel ? 'text-blue-600 font-medium' : 'text-gray-700'
+            }`}
+          >
+            {m.label}
+            {m.id === currentModel && <span className="text-blue-500 text-xs">active</span>}
+          </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
 // Animated "Analyzing contexts..." component with cycling dots
 function DeepQAThinking() {
   const [dotCount, setDotCount] = useState(1)
@@ -96,6 +124,8 @@ export default function App() {
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [uploadingFile, setUploadingFile] = useState(null) // { name, progress } during upload
   const [selectedFileIds, setSelectedFileIds] = useState([]) // Multi-select for RAG chat
+  const [currentModel, setCurrentModel] = useState('minimax-m2.7') // 'minimax-m2.7' | 'glm-5.1'
+  const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
   const [loadingFiles, setLoadingFiles] = useState(false) // Loading files from backend
 
   // Derive isFilesView from URL
@@ -289,24 +319,29 @@ export default function App() {
 
     const updateIndexFromScroll = () => {
       const containerRect = container.getBoundingClientRect()
-      const viewportCenter = containerRect.top + containerRect.height / 2
+      // Find the first message whose bottom edge is below the viewport center
+      const viewportCenter = containerRect.top + containerRect.height / 2 + container.scrollTop
 
-      let closestIdx = -1
-      let closestDist = Infinity
-      messageRefs.current.forEach((el, idx) => {
-        if (!el) return
+      let foundIdx = -1
+      for (let i = 0; i < messageRefs.current.length; i++) {
+        const el = messageRefs.current[i]
+        if (!el) continue
         const rect = el.getBoundingClientRect()
         const elTop = rect.top - containerRect.top + container.scrollTop
-        const elMid = elTop + rect.height / 2
-        const dist = Math.abs(elMid - viewportCenter)
-        if (dist < closestDist) {
-          closestDist = dist
-          closestIdx = idx
+        const elBottom = elTop + rect.height
+        if (elBottom > viewportCenter) {
+          foundIdx = i
+          break
         }
-      })
+      }
 
-      if (closestIdx !== -1 && closestIdx !== currentMessageIndex) {
-        setCurrentMessageIndex(closestIdx)
+      // If all messages fit above the center, use the last one
+      if (foundIdx === -1 && messageRefs.current.length > 0) {
+        foundIdx = messageRefs.current.length - 1
+      }
+
+      if (foundIdx !== -1 && foundIdx !== currentMessageIndex) {
+        setCurrentMessageIndex(foundIdx)
       }
     }
 
@@ -330,7 +365,7 @@ export default function App() {
       if (!messages?.length) return
 
       const refs = messageRefs.current
-      const maxIndex = messages.length - 1
+      const maxIndex = refs.length - 1
 
       const isPrev = e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp'
       const isNext = e.key === 's' || e.key === 'S' || e.key === 'ArrowDown'
@@ -340,19 +375,21 @@ export default function App() {
         const newIndex = currentMessageIndex <= 0 ? 0 : currentMessageIndex - 1
         if (refs[newIndex]) {
           refs[newIndex].scrollIntoView({ behavior: 'smooth', block: 'start' })
+          setCurrentMessageIndex(newIndex)
         }
       } else if (isNext) {
         e.preventDefault()
-        const newIndex = currentMessageIndex >= maxIndex ? maxIndex : currentMessageIndex + 1
+        const newIndex = Math.min(currentMessageIndex + 1, maxIndex)
         if (refs[newIndex]) {
           refs[newIndex].scrollIntoView({ behavior: 'smooth', block: 'start' })
+          setCurrentMessageIndex(newIndex)
         }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [currentConversation?.messages, currentMessageIndex])
+  }, [currentConversation?.messages, currentMessageIndex, streamingMessageId])
 
   // Global keyboard shortcut for search popup (Cmd+P / Ctrl+P)
   useEffect(() => {
@@ -917,6 +954,35 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {/* Model switcher button - shown when not on /files */}
+          {!isFilesView && (
+            <div className="relative flex-shrink-0 ml-4">
+              <button
+                onClick={() => setModelSwitcherOpen(prev => !prev)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-700"
+                title="Switch model"
+              >
+                <Bot size={14} />
+                <span>{currentModel === 'minimax-m2.7' ? 'Minimax M2.7' : 'GLM-5.1'}</span>
+                <span className="text-xs text-gray-400">▾</span>
+              </button>
+              {modelSwitcherOpen && (
+                <ModelSwitcher
+                  currentModel={currentModel}
+                  onSwitch={async (model) => {
+                    setCurrentModel(model)
+                    try {
+                      await api.switchModel(model)
+                    } catch (err) {
+                      setError('Failed to switch model: ' + err.message)
+                    }
+                  }}
+                  onClose={() => setModelSwitcherOpen(false)}
+                />
+              )}
+            </div>
+          )}
 
           {/* Files view buttons - only show when on /files */}
           {isFilesView && (
