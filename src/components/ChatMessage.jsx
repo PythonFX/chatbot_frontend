@@ -342,10 +342,10 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
                     return <hr className="my-4 border-gray-200" />
                   },
                   table({ children }) {
-                    return <div className="overflow-x-auto my-3 inline-block border border-gray-200 rounded-lg">{children}</div>
+                    return <div className="overflow-x-auto my-3 inline-block border border-gray-200 rounded-lg"><table className="min-w-full divide-y divide-gray-200">{children}</table></div>
                   },
                   thead({ children }) {
-                    return <thead className="bg-gray-100">{children}</thead>
+                    return <thead className="bg-gray-100 divide-y divide-gray-200">{children}</thead>
                   },
                   tbody({ children }) {
                     return <tbody>{children}</tbody>
