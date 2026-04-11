@@ -114,6 +114,8 @@ export default function App() {
   const chunkTextLenRef = useRef(0) // Accumulated text length for scroll triggering
   const messageRefs = useRef([]) // Refs for each message element
   const [currentMessageIndex, setCurrentMessageIndex] = useState(-1) // Track current navigated message
+  const scrollSyncBlockedRef = useRef(false) // Block scrollSync briefly after keyboard navigation
+  const [navHint, setNavHint] = useState(null) // { type: 'top'|'bottom', timer: id }
   const [collapsedMessages, setCollapsedMessages] = useState(new Set()) // Set of collapsed message IDs
   const [contextMenu, setContextMenu] = useState(null) // { x, y } for context menu position
   const [deepQAMode, setDeepQAMode] = useState(false) // Deep Q&A mode toggle
@@ -340,7 +342,7 @@ export default function App() {
         foundIdx = messageRefs.current.length - 1
       }
 
-      if (foundIdx !== -1 && foundIdx !== currentMessageIndex) {
+      if (foundIdx !== -1 && foundIdx !== currentMessageIndex && !scrollSyncBlockedRef.current) {
         setCurrentMessageIndex(foundIdx)
       }
     }
@@ -374,15 +376,29 @@ export default function App() {
         e.preventDefault()
         const newIndex = currentMessageIndex <= 0 ? 0 : currentMessageIndex - 1
         if (refs[newIndex]) {
-          refs[newIndex].scrollIntoView({ behavior: 'smooth', block: 'start' })
+          refs[newIndex].scrollIntoView({ behavior: 'instant', block: 'start' })
           setCurrentMessageIndex(newIndex)
+          scrollSyncBlockedRef.current = true
+          setTimeout(() => { scrollSyncBlockedRef.current = false }, 400)
+        }
+        if (currentMessageIndex <= 0) {
+          clearTimeout(navHint?.timer)
+          const timer = setTimeout(() => setNavHint(null), 1500)
+          setNavHint({ type: 'top', timer })
         }
       } else if (isNext) {
         e.preventDefault()
         const newIndex = Math.min(currentMessageIndex + 1, maxIndex)
         if (refs[newIndex]) {
-          refs[newIndex].scrollIntoView({ behavior: 'smooth', block: 'start' })
+          refs[newIndex].scrollIntoView({ behavior: 'instant', block: 'start' })
           setCurrentMessageIndex(newIndex)
+          scrollSyncBlockedRef.current = true
+          setTimeout(() => { scrollSyncBlockedRef.current = false }, 400)
+        }
+        if (currentMessageIndex >= maxIndex) {
+          clearTimeout(navHint?.timer)
+          const timer = setTimeout(() => setNavHint(null), 1500)
+          setNavHint({ type: 'bottom', timer })
         }
       }
     }
@@ -1207,6 +1223,13 @@ export default function App() {
                 )}
 
                 <div ref={messagesEndRef} />
+
+                {/* Navigation hint tooltip */}
+                {navHint && (
+                  <div className="fixed bottom-20 left-1/2 -translate-x-1/2 px-4 py-2 bg-gray-800 text-gray-200 text-sm rounded-lg shadow-lg z-50 pointer-events-none">
+                    {navHint.type === 'top' ? '已到达第一条消息' : '已到达最后一条消息'}
+                  </div>
+                )}
               </>
             ) : (
               <div className="flex items-center justify-center h-full text-gray-400">
