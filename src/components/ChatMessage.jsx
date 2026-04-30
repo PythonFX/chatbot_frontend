@@ -129,7 +129,7 @@ function CodeBlock({ language, codeString, isNovelAgentMode, isFolded, onFoldTog
   )
 }
 
-export default function ChatMessage({ message, onRegenerate, isGenerating, isCollapsed, onToggleCollapse, isNovelAgentMode }) {
+export default function ChatMessage({ message, onRegenerate, onSelectVersion, isGenerating, isCollapsed, onToggleCollapse, isNovelAgentMode }) {
   const isUser = message.role === 'user'
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false)
   // folded: Map of JSON block key -> boolean (true = collapsed)
@@ -137,19 +137,28 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
   // Generate a stable key from the JSON block's text content
   const getBlockKey = (codeString) => codeString.slice(0, 50) + '|' + codeString.length
 
+  // Resolve content: selected version or primary
+  const displayedContent = (!isUser && message.selected_version_index != null && message.versions)
+    ? message.versions[message.selected_version_index].content
+    : message.content
+
+  const displayedThinking = (!isUser && message.selected_version_index != null && message.versions)
+    ? message.versions[message.selected_version_index].thinking
+    : message.thinking
+
   // Pre-parse checkbox positions from content for stable indexing
   const checkboxPositions = useMemo(() => {
     const positions = []
     const regex = /\[([ xX])\]/g
     let match
-    while ((match = regex.exec(message.content)) !== null) {
+    while ((match = regex.exec(displayedContent)) !== null) {
       positions.push({
         checked: match[1].toLowerCase() === 'x',
         index: positions.length
       })
     }
     return positions
-  }, [message.content])
+  }, [displayedContent])
 
   // Track which checkboxes are user-toggled
   const [toggledIndices, setToggledIndices] = useState(new Set())
@@ -209,8 +218,79 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
           )}
         </div>
 
+        {/* Bottom-left action buttons for assistant messages */}
+        {!isUser && (
+          <div className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-200">
+            {/* Copy button */}
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(displayedContent)
+                } catch (err) {
+                  console.error('Failed to copy:', err)
+                }
+              }}
+              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200"
+              title="Copy response"
+            >
+              <Copy size={14} />
+            </button>
+
+            {/* Regenerate button */}
+            {onRegenerate && (
+              <button
+                onClick={() => onRegenerate(message.id)}
+                disabled={isGenerating}
+                className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200 disabled:opacity-50"
+                title="Regenerate response"
+              >
+                <RotateCcw size={14} />
+              </button>
+            )}
+
+            {/* Version navigator — only shown when versions exist */}
+            {message.versions && message.versions.length > 0 && onSelectVersion && (
+              <div className="flex items-center gap-1 ml-1 text-gray-400 text-xs font-mono">
+                <button
+                  onClick={() => {
+                    const totalVersions = (message.versions?.length ?? 0) + 1
+                    const currentIdx = message.selected_version_index ?? null
+                    // Primary = nav 1, version[0] = nav 2, version[1] = nav 3, ...
+                    const currentNavIdx = currentIdx === null ? 1 : currentIdx + 2
+                    const newNavIdx = currentNavIdx <= 1 ? totalVersions : currentNavIdx - 1
+                    // nav 1 = primary (null), nav 2+ = version index - 1
+                    const newVersionIdx = newNavIdx === 1 ? null : newNavIdx - 2
+                    onSelectVersion(message.id, newVersionIdx)
+                  }}
+                  className="hover:text-gray-200 px-1"
+                  title="Previous version"
+                >
+                  ‹
+                </button>
+                <span className="select-none">
+                  { (message.selected_version_index ?? null) === null ? 1 : message.selected_version_index + 2 }/{ (message.versions?.length ?? 0) + 1 }
+                </span>
+                <button
+                  onClick={() => {
+                    const totalVersions = (message.versions?.length ?? 0) + 1
+                    const currentIdx = message.selected_version_index ?? null
+                    const currentNavIdx = currentIdx === null ? 1 : currentIdx + 2
+                    const newNavIdx = currentNavIdx >= totalVersions ? 1 : currentNavIdx + 1
+                    const newVersionIdx = newNavIdx === 1 ? null : newNavIdx - 2
+                    onSelectVersion(message.id, newVersionIdx)
+                  }}
+                  className="hover:text-gray-200 px-1"
+                  title="Next version"
+                >
+                  ›
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Thinking (if present) */}
-        {message.thinking && !isCollapsed && (
+        {displayedThinking && !isCollapsed && (
           <div className="mb-3 p-3 bg-blue-50 border-l-4 border-blue-300 rounded-r-lg inline-block max-w-full">
             <div
               onClick={() => setIsThinkingCollapsed(c => !c)}
@@ -230,7 +310,7 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
             </div>
             {!isThinkingCollapsed && (
               <div className="text-sm text-gray-700 whitespace-pre-wrap break-words">
-                {message.thinking}
+                {displayedThinking}
               </div>
             )}
           </div>
@@ -239,9 +319,9 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
         {/* Main content - rendered as markdown */}
         <div className="text-gray-800 break-words">
           {isCollapsed ? (
-            <CollapsedContent content={message.content} />
+            <CollapsedContent content={displayedContent} />
           ) : (
-            <MarkdownErrorBoundary content={message.content}>
+            <MarkdownErrorBoundary content={displayedContent}>
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -361,7 +441,7 @@ export default function ChatMessage({ message, onRegenerate, isGenerating, isCol
                   },
                 }}
               >
-                {message.content || ''}
+                {displayedContent || ''}
               </ReactMarkdown>
             </MarkdownErrorBoundary>
           )}

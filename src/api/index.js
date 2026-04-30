@@ -238,6 +238,18 @@ export const api = {
       body: JSON.stringify({ conversation_id: conversationId, message_id: messageId }),
     }),
 
+  selectMessageVersion: (messageId, conversationId, versionIndex) =>
+    fetchWithError('/chat/message/' + messageId + '/select-version', {
+      method: 'PATCH',
+      body: JSON.stringify({ conversation_id: conversationId, version_index: versionIndex }),
+    }),
+
+  generateVersion: (messageId, conversationId) =>
+    fetchWithError('/chat/message/' + messageId + '/versions', {
+      method: 'POST',
+      body: JSON.stringify({ conversation_id: conversationId }),
+    }),
+
   // Model switch
   switchModel: (model) =>
     fetchWithError('/model/switch', {

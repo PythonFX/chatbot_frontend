@@ -129,6 +129,16 @@ export default function App() {
   const [currentModel, setCurrentModel] = useState('minimax-m2.7') // 'minimax-m2.7' | 'glm-5.1'
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
   const [loadingFiles, setLoadingFiles] = useState(false) // Loading files from backend
+  const [messageVersions, setMessageVersions] = useState({}) // { [messageId]: { selectedIndex: number|null, versions: array } }
+
+  // Persist messageVersions to localStorage on change
+  useEffect(() => {
+    try {
+      localStorage.setItem('messageVersions', JSON.stringify(messageVersions))
+    } catch (e) {
+      console.error('Failed to save message versions to localStorage', e)
+    }
+  }, [messageVersions])
 
   // Derive isFilesView from URL
   const isFilesView = location.pathname === '/files'
@@ -173,6 +183,12 @@ export default function App() {
   // Load conversations on mount
   useEffect(() => {
     loadConversations()
+    try {
+      const saved = localStorage.getItem('messageVersions')
+      if (saved) setMessageVersions(JSON.parse(saved))
+    } catch (e) {
+      console.error('Failed to load message versions from localStorage', e)
+    }
   }, [])
 
   // Load conversation from URL when it changes
@@ -715,37 +731,58 @@ export default function App() {
 
   const handleRegenerate = async (userMessageId) => {
     if (!currentConversation) return
-
     setIsGenerating(true)
     setError(null)
-
     try {
-      const response = await api.regenerateResponse(currentConversation.id, userMessageId)
-
-      // Update the message
-      setCurrentConversation((prev) => {
-        const msgIndex = prev.messages.findIndex((m) => m.id === userMessageId)
-        if (msgIndex === -1) return prev
-
-        const newMessages = [
-          ...prev.messages.slice(0, msgIndex + 1),
-          {
-            id: response.message_id,
-            role: 'assistant',
-            content: response.content,
-            thinking: response.thinking,
-            type: response.type,
-            created_at: new Date().toISOString(),
-            complete: true,
-          },
-        ]
-
-        return { ...prev, messages: newMessages }
-      })
-
+      await api.regenerateResponse(currentConversation.id, userMessageId)
+      const updatedConv = await api.getConversation(currentConversation.id)
+      setCurrentConversation(updatedConv)
       await loadConversations()
     } catch (err) {
       setError('Failed to regenerate: ' + err.message)
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+
+  const handleSelectVersion = async (messageId, versionIndex) => {
+    if (!currentConversation) return
+    try {
+      const result = await api.selectMessageVersion(messageId, currentConversation.id, versionIndex)
+      // Update local state
+      setMessageVersions(prev => ({
+        ...prev,
+        [messageId]: {
+          ...prev[messageId],
+          selectedIndex: versionIndex,
+          versions: currentConversation.messages.find(m => m.id === messageId)?.versions ?? [],
+        }
+      }))
+      // Update the message content in currentConversation
+      setCurrentConversation(prev => ({
+        ...prev,
+        messages: prev.messages.map(m =>
+          m.id === messageId
+            ? { ...m, content: result.content, thinking: result.thinking, selected_version_index: result.selected_version_index }
+            : m
+        )
+      }))
+    } catch (err) {
+      setError('Failed to select version: ' + err.message)
+    }
+  }
+
+  const handleGenerateVersion = async (messageId) => {
+    if (!currentConversation) return
+    setIsGenerating(true)
+    setError(null)
+    try {
+      const result = await api.generateVersion(messageId, currentConversation.id)
+      // Refresh conversation to get updated versions list
+      const updatedConv = await api.getConversation(currentConversation.id)
+      setCurrentConversation(updatedConv)
+    } catch (err) {
+      setError('Failed to generate version: ' + err.message)
     } finally {
       setIsGenerating(false)
     }
@@ -1095,6 +1132,7 @@ export default function App() {
                             ? () => handleRegenerate(message.id)
                             : null
                         }
+                        onSelectVersion={message.role === 'assistant' ? handleSelectVersion : null}
                         isGenerating={false}
                         isCollapsed={collapsedMessages.has(message.id)}
                         onToggleCollapse={() => {
