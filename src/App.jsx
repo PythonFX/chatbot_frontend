@@ -1133,6 +1133,7 @@ export default function App() {
                             : null
                         }
                         onSelectVersion={message.role === 'assistant' ? handleSelectVersion : null}
+                        onGenerateVersion={message.role === 'assistant' ? handleGenerateVersion : null}
                         isGenerating={false}
                         isCollapsed={collapsedMessages.has(message.id)}
                         onToggleCollapse={() => {

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, Component } from 'react'
-import { User, Bot, RotateCcw, Copy, Check } from 'lucide-react'
+import { User, Bot, RotateCcw, Copy, Check, RefreshCw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -129,7 +129,7 @@ function CodeBlock({ language, codeString, isNovelAgentMode, isFolded, onFoldTog
   )
 }
 
-export default function ChatMessage({ message, onRegenerate, onSelectVersion, isGenerating, isCollapsed, onToggleCollapse, isNovelAgentMode }) {
+export default function ChatMessage({ message, onRegenerate, onSelectVersion, onGenerateVersion, isGenerating, isCollapsed, onToggleCollapse, isNovelAgentMode }) {
   const isUser = message.role === 'user'
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false)
   // folded: Map of JSON block key -> boolean (true = collapsed)
@@ -137,13 +137,16 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, is
   // Generate a stable key from the JSON block's text content
   const getBlockKey = (codeString) => codeString.slice(0, 50) + '|' + codeString.length
 
-  // Resolve content: selected version or primary
-  const displayedContent = (!isUser && message.selected_version_index != null && message.versions)
-    ? message.versions[message.selected_version_index].content
+  // Resolve content: when versions exist, always use the versions array
+  const hasVersions = !isUser && message.versions && message.versions.length > 0
+  const versionIdx = hasVersions ? (message.selected_version_index ?? 0) : null
+
+  const displayedContent = hasVersions
+    ? message.versions[versionIdx].content
     : message.content
 
-  const displayedThinking = (!isUser && message.selected_version_index != null && message.versions)
-    ? message.versions[message.selected_version_index].thinking
+  const displayedThinking = hasVersions
+    ? message.versions[versionIdx].thinking
     : message.thinking
 
   // Pre-parse checkbox positions from content for stable indexing
@@ -203,91 +206,10 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, is
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <span className="font-semibold text-gray-700">{isUser ? 'You' : 'Assistant'}</span>
-          {!isUser && onRegenerate && (
-            <button
-              onClick={() => onRegenerate(message.id)}
-              disabled={isGenerating}
-              className="p-1 hover:bg-gray-200 rounded transition-colors disabled:opacity-50"
-              title="Regenerate response"
-            >
-              <RotateCcw size={14} />
-            </button>
-          )}
           {isCollapsed && (
             <span className="text-xs text-gray-400">(collapsed)</span>
           )}
         </div>
-
-        {/* Bottom-left action buttons for assistant messages */}
-        {!isUser && (
-          <div className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-200">
-            {/* Copy button */}
-            <button
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(displayedContent)
-                } catch (err) {
-                  console.error('Failed to copy:', err)
-                }
-              }}
-              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200"
-              title="Copy response"
-            >
-              <Copy size={14} />
-            </button>
-
-            {/* Regenerate button */}
-            {onRegenerate && (
-              <button
-                onClick={() => onRegenerate(message.id)}
-                disabled={isGenerating}
-                className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200 disabled:opacity-50"
-                title="Regenerate response"
-              >
-                <RotateCcw size={14} />
-              </button>
-            )}
-
-            {/* Version navigator — only shown when versions exist */}
-            {message.versions && message.versions.length > 0 && onSelectVersion && (
-              <div className="flex items-center gap-1 ml-1 text-gray-400 text-xs font-mono">
-                <button
-                  onClick={() => {
-                    const totalVersions = (message.versions?.length ?? 0) + 1
-                    const currentIdx = message.selected_version_index ?? null
-                    // Primary = nav 1, version[0] = nav 2, version[1] = nav 3, ...
-                    const currentNavIdx = currentIdx === null ? 1 : currentIdx + 2
-                    const newNavIdx = currentNavIdx <= 1 ? totalVersions : currentNavIdx - 1
-                    // nav 1 = primary (null), nav 2+ = version index - 1
-                    const newVersionIdx = newNavIdx === 1 ? null : newNavIdx - 2
-                    onSelectVersion(message.id, newVersionIdx)
-                  }}
-                  className="hover:text-gray-200 px-1"
-                  title="Previous version"
-                >
-                  ‹
-                </button>
-                <span className="select-none">
-                  { (message.selected_version_index ?? null) === null ? 1 : message.selected_version_index + 2 }/{ (message.versions?.length ?? 0) + 1 }
-                </span>
-                <button
-                  onClick={() => {
-                    const totalVersions = (message.versions?.length ?? 0) + 1
-                    const currentIdx = message.selected_version_index ?? null
-                    const currentNavIdx = currentIdx === null ? 1 : currentIdx + 2
-                    const newNavIdx = currentNavIdx >= totalVersions ? 1 : currentNavIdx + 1
-                    const newVersionIdx = newNavIdx === 1 ? null : newNavIdx - 2
-                    onSelectVersion(message.id, newVersionIdx)
-                  }}
-                  className="hover:text-gray-200 px-1"
-                  title="Next version"
-                >
-                  ›
-                </button>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Thinking (if present) */}
         {displayedThinking && !isCollapsed && (
@@ -446,6 +368,81 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, is
             </MarkdownErrorBoundary>
           )}
         </div>
+
+        {/* Bottom action bar for assistant messages */}
+        {!isUser && (
+          <div className="flex items-center gap-1 mt-2 pt-2 border-t border-gray-200">
+            {/* Copy button */}
+            <button
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(displayedContent)
+                } catch (err) {
+                  console.error('Failed to copy:', err)
+                }
+              }}
+              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200"
+              title="Copy response"
+            >
+              <Copy size={14} />
+            </button>
+
+            {/* Regenerate button */}
+            {onRegenerate && (
+              <button
+                onClick={() => onRegenerate(message.id)}
+                disabled={isGenerating}
+                className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200 disabled:opacity-50"
+                title="Regenerate response"
+              >
+                <RotateCcw size={14} />
+              </button>
+            )}
+
+            {/* Version navigator — only shown when versions exist */}
+            {message.versions && message.versions.length > 0 && onSelectVersion && (
+              <div className="flex items-center gap-1 ml-1 text-gray-400 text-sm font-mono">
+                <button
+                  onClick={() => {
+                    const totalVersions = message.versions.length
+                    const currentIdx = message.selected_version_index ?? 0
+                    const newIdx = currentIdx <= 0 ? totalVersions - 1 : currentIdx - 1
+                    onSelectVersion(message.id, newIdx)
+                  }}
+                  className="hover:text-gray-200 px-1"
+                  title="Previous version"
+                >
+                  ‹
+                </button>
+                <span className="select-none">
+                  { (message.selected_version_index ?? 0) + 1 }/{ message.versions.length }
+                </span>
+                <button
+                  onClick={() => {
+                    const totalVersions = message.versions.length
+                    const currentIdx = message.selected_version_index ?? 0
+                    const newIdx = currentIdx >= totalVersions - 1 ? 0 : currentIdx + 1
+                    onSelectVersion(message.id, newIdx)
+                  }}
+                  className="hover:text-gray-200 px-1"
+                  title="Next version"
+                >
+                  ›
+                </button>
+              </div>
+            )}
+
+            {/* Generate new version button */}
+            <button
+              onClick={() => onGenerateVersion?.(message.id)}
+              disabled={isGenerating}
+              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200 disabled:opacity-50"
+              title="Generate new version"
+            >
+              <RefreshCw size={14} />
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
