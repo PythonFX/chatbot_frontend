@@ -469,6 +469,11 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
                 >
                   ›
                 </button>
+                {message.versions[message.selected_version_index ?? 0]?.model && (
+                  <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded font-sans ml-1">
+                    {MODEL_LABELS[message.versions[message.selected_version_index ?? 0].model] || message.versions[message.selected_version_index ?? 0].model}
+                  </span>
+                )}
               </div>
             )}
 
