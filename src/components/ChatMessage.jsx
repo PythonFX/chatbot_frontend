@@ -161,12 +161,11 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
 
   const MODEL_LABELS = { minimax: 'Minimax', 'glm5.1': 'GLM-5.1', 'kimi-k2.6': 'Kimi K2.6' }
 
-  // Which model tab is active: only if message is_multi_mode AND selected version matches a model tab
-  const activeModelTab = useMemo(() => {
-    if (!modelVersionMap || !hasVersions || !message.is_multi_mode) return null
-    const selectedVersion = message.versions[versionIdx]
-    return selectedVersion?.model || null
-  }, [modelVersionMap, hasVersions, message.versions, versionIdx, message.is_multi_mode])
+  // Which model tab is active: only when selected version is multi-mode
+  // Fallback for old data: version with model but no is_multi_mode field is treated as multi-mode
+  const selectedVersion = hasVersions ? message.versions[versionIdx] : null
+  const isVersionMultiMode = selectedVersion && (selectedVersion.is_multi_mode || (selectedVersion.model && selectedVersion.is_multi_mode === undefined))
+  const activeModelTab = isVersionMultiMode ? (selectedVersion.model || null) : null
 
   // Pre-parse checkbox positions from content for stable indexing
   const checkboxPositions = useMemo(() => {
@@ -469,9 +468,9 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
                 >
                   ›
                 </button>
-                {message.versions[message.selected_version_index ?? 0]?.model && (
+                {hasVersions && message.versions[versionIdx]?.model && (
                   <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded font-sans ml-1">
-                    {MODEL_LABELS[message.versions[message.selected_version_index ?? 0].model] || message.versions[message.selected_version_index ?? 0].model}
+                    {MODEL_LABELS[message.versions[versionIdx].model] || message.versions[versionIdx].model}
                   </span>
                 )}
               </div>
