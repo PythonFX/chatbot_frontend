@@ -13,11 +13,17 @@ import NovelBookPicker from './components/NovelBookPicker'
 import { api } from './api'
 
 // Model switcher dropdown
-function ModelSwitcher({ currentModel, onSwitch, onClose }) {
-  const models = [
-    { id: 'minimax-m2.7', label: 'Minimax M2.7' },
-    { id: 'glm-5.1', label: 'GLM-5.1' },
-  ]
+function ModelSwitcher({ currentModel, availableModels, onSwitch, onClose }) {
+  const MODEL_LABELS = {
+    'minimax': 'Minimax',
+    'glm5.1': 'GLM-5.1',
+    'kimi-k2.6': 'Kimi K2.6',
+  }
+
+  const models = (availableModels || []).map(id => ({
+    id,
+    label: MODEL_LABELS[id] || id,
+  }))
 
   return (
     <>
@@ -126,7 +132,8 @@ export default function App() {
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [uploadingFile, setUploadingFile] = useState(null) // { name, progress } during upload
   const [selectedFileIds, setSelectedFileIds] = useState([]) // Multi-select for RAG chat
-  const [currentModel, setCurrentModel] = useState('minimax-m2.7') // 'minimax-m2.7' | 'glm-5.1'
+  const [currentModel, setCurrentModel] = useState('minimax')
+  const [availableModels, setAvailableModels] = useState(['minimax', 'glm5.1', 'kimi-k2.6'])
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
   const [loadingFiles, setLoadingFiles] = useState(false) // Loading files from backend
   const [messageVersions, setMessageVersions] = useState({}) // { [messageId]: { selectedIndex: number|null, versions: array } }
@@ -183,6 +190,11 @@ export default function App() {
   // Load conversations on mount
   useEffect(() => {
     loadConversations()
+    // Fetch available models from backend
+    api.getModels().then(data => {
+      if (data.current) setCurrentModel(data.current)
+      if (data.available) setAvailableModels(data.available)
+    }).catch(() => {})
     try {
       const saved = localStorage.getItem('messageVersions')
       if (saved) setMessageVersions(JSON.parse(saved))
@@ -1017,12 +1029,13 @@ export default function App() {
                 title="Switch model"
               >
                 <Bot size={14} />
-                <span>{currentModel === 'minimax-m2.7' ? 'Minimax M2.7' : 'GLM-5.1'}</span>
+                <span>{({ minimax: 'Minimax', 'glm5.1': 'GLM-5.1', 'kimi-k2.6': 'Kimi K2.6' })[currentModel] || currentModel}</span>
                 <span className="text-xs text-gray-400">▾</span>
               </button>
               {modelSwitcherOpen && (
                 <ModelSwitcher
                   currentModel={currentModel}
+                  availableModels={availableModels}
                   onSwitch={async (model) => {
                     setCurrentModel(model)
                     try {

@@ -256,4 +256,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ model }),
     }),
+
+  // Model list
+  getModels: () => fetchWithError('/model/list'),
 }
