@@ -121,7 +121,7 @@ export const api = {
     fetchWithError(`/conversations/${conversationId}/messages/${messageId}/rag-contexts`),
 
   // Streaming chat using fetch with ReadableStream and SSE
-  sendMessageStreamFetch: (conversationId, message, callbacks, resume = false, tempAssistantMsgId = null, deepQAMode = false) => {
+  sendMessageStreamFetch: (conversationId, message, callbacks, resume = false, tempAssistantMsgId = null, deepQAMode = false, multiModelMode = false) => {
     const { onChunk, onThinking, onDone, onError, onStart, signal } = callbacks
     let streamingMessageId = null
     let fullContent = ''
@@ -138,7 +138,7 @@ export const api = {
     const promise = fetch(`${API_BASE}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_id: conversationId, message, resume, deep_qa_mode: deepQAMode }),
+      body: JSON.stringify({ conversation_id: conversationId, message, resume, deep_qa_mode: deepQAMode, multi_model: multiModelMode }),
     })
       .then((response) => {
         if (!response.ok) {
@@ -165,15 +165,32 @@ export const api = {
                   streamingMessageId = data.message_id
                   title = data.title
                   onStart?.({ message_id: streamingMessageId, title, tempAssistantMsgId })
+                } else if (data.type === 'multi_start') {
+                  streamingMessageId = data.message_id
+                  title = data.title
+                  onStart?.({ message_id: streamingMessageId, title, tempAssistantMsgId })
+                  callbacks.onMultiStart?.({ message_id: data.message_id, title: data.title, models: data.models, version_map: data.version_map })
+                } else if (data.type === 'model_done') {
+                  callbacks.onModelDone?.(data.model, data.version_index)
+                } else if (data.type === 'model_error') {
+                  callbacks.onModelError?.(data.model, data.error)
                 } else if (data.type === 'deep_qa_status') {
                   // Handle DeepQA processing status - call callback if provided
                   callbacks.onDeepQAStatus?.(data)
                 } else if (data.type === 'chunk') {
-                  fullContent += data.text
-                  onChunk?.(data.text, fullContent)
+                  if (data.model) {
+                    callbacks.onMultiChunk?.(data.model, data.text)
+                  } else {
+                    fullContent += data.text
+                    onChunk?.(data.text, fullContent)
+                  }
                 } else if (data.type === 'thinking') {
-                  fullThinking += data.thinking
-                  onThinking?.(fullThinking)
+                  if (data.model) {
+                    callbacks.onMultiThinking?.(data.model, data.thinking)
+                  } else {
+                    fullThinking += data.thinking
+                    onThinking?.(fullThinking)
+                  }
                 } else if (data.type === 'done') {
                   onDone?.({ message_id: data.message_id, title: data.title, content: fullContent, thinking: fullThinking })
                   return true // Stream complete

@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { Bot, Copy, Check, Upload, X, FileText, MessageSquare, RefreshCw } from 'lucide-react'
+import { Bot, Copy, Check, Upload, X, FileText, MessageSquare, RefreshCw, Layers } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import Sidebar from './components/Sidebar'
 import ChatMessage from './components/ChatMessage'
 import MessageInput from './components/MessageInput'
+import MultiModelStreamer from './components/MultiModelStreamer'
 import SearchPopup from './components/SearchPopup'
 import FilesList from './components/FilesList'
 import NovelBookPicker from './components/NovelBookPicker'
@@ -135,6 +136,8 @@ export default function App() {
   const [currentModel, setCurrentModel] = useState('minimax')
   const [availableModels, setAvailableModels] = useState(['minimax', 'glm5.1', 'kimi-k2.6'])
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
+  const [multiModelMode, setMultiModelMode] = useState(false)
+  const [multiStreamingState, setMultiStreamingState] = useState(null)
   const [loadingFiles, setLoadingFiles] = useState(false) // Loading files from backend
   const [messageVersions, setMessageVersions] = useState({}) // { [messageId]: { selectedIndex: number|null, versions: array } }
 
@@ -607,6 +610,7 @@ export default function App() {
     setStreamingThinking('')
     setStreamingMessageId(null)
     setDeepQAStatus(null)
+    setMultiStreamingState(null)
 
     // Reset auto-scroll for new stream
     autoScrollRef.current = true
@@ -699,6 +703,55 @@ export default function App() {
           setPendingNovelBooks(null)
           setNovelAgentMode(true)
         },
+        onMultiStart: ({ message_id, models, version_map }) => {
+          const streams = {}
+          models.forEach(m => { streams[m] = { content: '', thinking: '', isDone: false, error: null } })
+          setMultiStreamingState({ models, activeTab: models[0], versionMap: version_map, streams })
+        },
+        onMultiChunk: (model, text) => {
+          setMultiStreamingState(prev => {
+            if (!prev) return prev
+            const stream = prev.streams[model]
+            if (!stream) return prev
+            return {
+              ...prev,
+              streams: { ...prev.streams, [model]: { ...stream, content: stream.content + text } },
+            }
+          })
+        },
+        onMultiThinking: (model, thinking) => {
+          setMultiStreamingState(prev => {
+            if (!prev) return prev
+            const stream = prev.streams[model]
+            if (!stream) return prev
+            return {
+              ...prev,
+              streams: { ...prev.streams, [model]: { ...stream, thinking: stream.thinking + thinking } },
+            }
+          })
+        },
+        onModelDone: (model, version_index) => {
+          setMultiStreamingState(prev => {
+            if (!prev) return prev
+            const stream = prev.streams[model]
+            if (!stream) return prev
+            return {
+              ...prev,
+              streams: { ...prev.streams, [model]: { ...stream, isDone: true } },
+            }
+          })
+        },
+        onModelError: (model, error) => {
+          setMultiStreamingState(prev => {
+            if (!prev) return prev
+            const stream = prev.streams[model]
+            if (!stream) return prev
+            return {
+              ...prev,
+              streams: { ...prev.streams, [model]: { ...stream, isDone: true, error } },
+            }
+          })
+        },
         onDone: async ({ message_id, title, content, stopped }) => {
           streamAbortRef.current = null
           // Scroll to bottom after markdown rendering settles
@@ -707,6 +760,7 @@ export default function App() {
           setStreamingThinking('')
           setStreamingMessageId(null)
           setDeepQAStatus(null)
+          setMultiStreamingState(null)
           setIsGenerating(false)
 
           if (!stopped) {
@@ -737,7 +791,8 @@ export default function App() {
       },
       false,
       assistantMsgId,
-      deepQAMode
+      deepQAMode,
+      multiModelMode
     )
   }
 
@@ -1020,33 +1075,49 @@ export default function App() {
             )}
           </div>
 
-          {/* Model switcher button - shown when not on /files */}
+          {/* Model switcher + multi-model toggle - shown when not on /files */}
           {!isFilesView && (
-            <div className="relative flex-shrink-0 ml-4">
-              <button
-                onClick={() => setModelSwitcherOpen(prev => !prev)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-700"
-                title="Switch model"
-              >
-                <Bot size={14} />
-                <span>{({ minimax: 'Minimax', 'glm5.1': 'GLM-5.1', 'kimi-k2.6': 'Kimi K2.6' })[currentModel] || currentModel}</span>
-                <span className="text-xs text-gray-400">▾</span>
-              </button>
-              {modelSwitcherOpen && (
-                <ModelSwitcher
-                  currentModel={currentModel}
-                  availableModels={availableModels}
-                  onSwitch={async (model) => {
-                    setCurrentModel(model)
-                    try {
-                      await api.switchModel(model)
-                    } catch (err) {
-                      setError('Failed to switch model: ' + err.message)
-                    }
-                  }}
-                  onClose={() => setModelSwitcherOpen(false)}
-                />
+            <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+              {!multiModelMode && (
+                <div className="relative">
+                  <button
+                    onClick={() => setModelSwitcherOpen(prev => !prev)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-700"
+                    title="Switch model"
+                  >
+                    <Bot size={14} />
+                    <span>{({ minimax: 'Minimax', 'glm5.1': 'GLM-5.1', 'kimi-k2.6': 'Kimi K2.6' })[currentModel] || currentModel}</span>
+                    <span className="text-xs text-gray-400">▾</span>
+                  </button>
+                  {modelSwitcherOpen && (
+                    <ModelSwitcher
+                      currentModel={currentModel}
+                      availableModels={availableModels}
+                      onSwitch={async (model) => {
+                        setCurrentModel(model)
+                        try {
+                          await api.switchModel(model)
+                        } catch (err) {
+                          setError('Failed to switch model: ' + err.message)
+                        }
+                      }}
+                      onClose={() => setModelSwitcherOpen(false)}
+                    />
+                  )}
+                </div>
               )}
+              <button
+                onClick={() => setMultiModelMode(prev => !prev)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors text-sm ${
+                  multiModelMode
+                    ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
+                    : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                }`}
+                title={multiModelMode ? 'Multi-model mode: all models respond simultaneously' : 'Switch to multi-model mode'}
+              >
+                <Layers size={14} />
+                <span>{multiModelMode ? 'Multi' : 'Single'}</span>
+              </button>
             </div>
           )}
 
@@ -1165,8 +1236,13 @@ export default function App() {
                     </div>
                   ))}
 
-                {/* Streaming message (show if we have streaming state and it's not in saved messages) */}
-                {streamingMessageId && (
+                {/* Streaming message */}
+                {multiStreamingState && streamingMessageId ? (
+                  <MultiModelStreamer
+                    multiStreamingState={multiStreamingState}
+                    onTabChange={(tab) => setMultiStreamingState(prev => prev ? { ...prev, activeTab: tab } : prev)}
+                  />
+                ) : streamingMessageId && (
                   <div className="flex gap-4 p-4 bg-gray-50">
                     <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-green-500">
                       <Bot size={16} className="text-white" />
