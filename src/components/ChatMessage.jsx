@@ -149,6 +149,25 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
     ? message.versions[versionIdx].thinking
     : message.thinking
 
+  // Multi-model version detection: which versions have a `model` field
+  const modelVersionMap = useMemo(() => {
+    if (!hasVersions) return null
+    const map = {}
+    message.versions.forEach((v, i) => {
+      if (v.model) map[v.model] = i
+    })
+    return Object.keys(map).length > 0 ? map : null
+  }, [hasVersions, message.versions])
+
+  const MODEL_LABELS = { minimax: 'Minimax', 'glm5.1': 'GLM-5.1', 'kimi-k2.6': 'Kimi K2.6' }
+
+  // Which model tab is active: only if message is_multi_mode AND selected version matches a model tab
+  const activeModelTab = useMemo(() => {
+    if (!modelVersionMap || !hasVersions || !message.is_multi_mode) return null
+    const selectedVersion = message.versions[versionIdx]
+    return selectedVersion?.model || null
+  }, [modelVersionMap, hasVersions, message.versions, versionIdx, message.is_multi_mode])
+
   // Pre-parse checkbox positions from content for stable indexing
   const checkboxPositions = useMemo(() => {
     const positions = []
@@ -208,6 +227,27 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
           <span className="font-semibold text-gray-700">{isUser ? 'You' : 'Assistant'}</span>
           {isCollapsed && (
             <span className="text-xs text-gray-400">(collapsed)</span>
+          )}
+          {/* Multi-model tabs for completed messages */}
+          {modelVersionMap && !isUser && (
+            <div className="flex items-center gap-1 ml-1">
+              {Object.entries(modelVersionMap).map(([model, vIdx]) => {
+                const isActive = activeModelTab === model
+                return (
+                  <button
+                    key={model}
+                    onClick={() => onSelectVersion?.(message.id, vIdx)}
+                    className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
+                      isActive
+                        ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
+                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                    }`}
+                  >
+                    {MODEL_LABELS[model] || model}
+                  </button>
+                )
+              })}
+            </div>
           )}
         </div>
 
@@ -429,11 +469,6 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
                 >
                   ›
                 </button>
-                {message.versions[message.selected_version_index ?? 0]?.model && (
-                  <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded font-sans">
-                    {({ minimax: 'Minimax', 'glm5.1': 'GLM-5.1', 'kimi-k2.6': 'Kimi K2.6' })[message.versions[message.selected_version_index ?? 0].model] || message.versions[message.selected_version_index ?? 0].model}
-                  </span>
-                )}
               </div>
             )}
 
