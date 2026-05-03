@@ -255,6 +255,12 @@ export const api = {
       body: JSON.stringify({ conversation_id: conversationId, message_id: messageId }),
     }),
 
+  regenerateModel: (conversationId, messageId, model) =>
+    fetchWithError('/chat/regenerate-model', {
+      method: 'POST',
+      body: JSON.stringify({ conversation_id: conversationId, message_id: messageId, model }),
+    }),
+
   selectMessageVersion: (messageId, conversationId, versionIndex) =>
     fetchWithError('/chat/message/' + messageId + '/select-version', {
       method: 'PATCH',
@@ -266,6 +272,98 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ conversation_id: conversationId }),
     }),
+
+  generateVersionStream: (messageId, conversationId, callbacks) => {
+    const { onChunk, onThinking, onDone, onError, onStart, signal } = callbacks
+    let isAborted = false
+
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        isAborted = true
+      })
+    }
+
+    const promise = fetch(`${API_BASE}/chat/message/${messageId}/versions/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: conversationId }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        function processBuffer() {
+          if (isAborted) return true
+
+          const lines = buffer.split('\n')
+          buffer = lines.pop()
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6))
+
+                if (data.type === 'start') {
+                  onStart?.({ version_index: data.version_index })
+                } else if (data.type === 'chunk') {
+                  onChunk?.(data.text)
+                } else if (data.type === 'thinking') {
+                  onThinking?.(data.thinking)
+                } else if (data.type === 'done') {
+                  onDone?.(data)
+                  return true
+                } else if (data.type === 'error') {
+                  onError?.(data.error)
+                  return true
+                }
+              } catch (e) {
+                // Ignore parse errors for incomplete JSON
+              }
+            }
+          }
+          return false
+        }
+
+        function read() {
+          if (isAborted) return
+
+          return reader.read().then(({ done, value }) => {
+            if (done) {
+              if (buffer) {
+                processBuffer()
+              }
+              return
+            }
+
+            buffer += decoder.decode(value, { stream: true })
+            const complete = processBuffer()
+            if (!complete && !done && !isAborted) {
+              return read()
+            }
+          })
+        }
+
+        return read()
+      })
+      .catch((error) => {
+        if (!isAborted) {
+          onError?.(error.message)
+        }
+      })
+
+    return {
+      abort: () => {
+        isAborted = true
+        if (signal) signal.dispatchEvent(new Event('abort'))
+      },
+      promise,
+    }
+  },
 
   // Model switch
   switchModel: (model) =>

@@ -140,6 +140,7 @@ export default function App() {
   const [multiStreamingState, setMultiStreamingState] = useState(null)
   const [loadingFiles, setLoadingFiles] = useState(false) // Loading files from backend
   const [messageVersions, setMessageVersions] = useState({}) // { [messageId]: { selectedIndex: number|null, versions: array } }
+  const [generatingVersionMessageId, setGeneratingVersionMessageId] = useState(null) // Message ID currently generating a new version
 
   // Persist messageVersions to localStorage on change
   useEffect(() => {
@@ -841,15 +842,112 @@ export default function App() {
 
   const handleGenerateVersion = async (messageId) => {
     if (!currentConversation) return
+    if (generatingVersionMessageId) return // Prevent concurrent
+
+    setGeneratingVersionMessageId(messageId)
+    setError(null)
+
+    const abortController = new AbortController()
+    let timeoutId = null
+    let versionIndex = null
+
+    // 3-minute timeout guard
+    timeoutId = setTimeout(() => {
+      abortController.abort()
+      setGeneratingVersionMessageId(null)
+      setError('Version generation timed out')
+    }, 180000)
+
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      setGeneratingVersionMessageId(null)
+    }
+
+    api.generateVersionStream(messageId, currentConversation.id, {
+      signal: abortController.signal,
+      onStart: ({ version_index }) => {
+        versionIndex = version_index
+        // Add placeholder version and switch UI to it
+        setCurrentConversation(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            messages: prev.messages.map(m => {
+              if (m.id !== messageId) return m
+              const versions = m.versions ? [...m.versions] : []
+              // Ensure the array is long enough (backend may have added versions we don't know about)
+              while (versions.length <= version_index) {
+                versions.push({ content: '', thinking: null, status: 'generating' })
+              }
+              return { ...m, selected_version_index: version_index, versions }
+            }),
+          }
+        })
+      },
+      onChunk: (text) => {
+        if (versionIndex === null) return
+        setCurrentConversation(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            messages: prev.messages.map(m => {
+              if (m.id !== messageId || !m.versions || !m.versions[versionIndex]) return m
+              const updatedVersions = [...m.versions]
+              updatedVersions[versionIndex] = {
+                ...updatedVersions[versionIndex],
+                content: (updatedVersions[versionIndex].content || '') + text,
+              }
+              return { ...m, versions: updatedVersions }
+            }),
+          }
+        })
+      },
+      onThinking: (thinking) => {
+        if (versionIndex === null) return
+        setCurrentConversation(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            messages: prev.messages.map(m => {
+              if (m.id !== messageId || !m.versions || !m.versions[versionIndex]) return m
+              const updatedVersions = [...m.versions]
+              updatedVersions[versionIndex] = {
+                ...updatedVersions[versionIndex],
+                thinking: (updatedVersions[versionIndex].thinking || '') + thinking,
+              }
+              return { ...m, versions: updatedVersions }
+            }),
+          }
+        })
+      },
+      onDone: async () => {
+        cleanup()
+        // Refresh conversation from backend to get clean persisted state
+        try {
+          const updatedConv = await api.getConversation(currentConversation.id)
+          setCurrentConversation(updatedConv)
+        } catch (e) {
+          console.error('Failed to refresh conversation after version generation:', e)
+        }
+      },
+      onError: (errMsg) => {
+        cleanup()
+        setError('Failed to generate version: ' + errMsg)
+      },
+    })
+  }
+
+  const handleRegenerateModel = async (messageId, model) => {
+    if (!currentConversation) return
     setIsGenerating(true)
     setError(null)
     try {
-      const result = await api.generateVersion(messageId, currentConversation.id)
-      // Refresh conversation to get updated versions list
+      await api.regenerateModel(currentConversation.id, messageId, model)
+      // Refresh conversation to get the updated version
       const updatedConv = await api.getConversation(currentConversation.id)
       setCurrentConversation(updatedConv)
     } catch (err) {
-      setError('Failed to generate version: ' + err.message)
+      setError('Failed to regenerate model: ' + err.message)
     } finally {
       setIsGenerating(false)
     }
@@ -1218,7 +1316,9 @@ export default function App() {
                         }
                         onSelectVersion={message.role === 'assistant' ? handleSelectVersion : null}
                         onGenerateVersion={message.role === 'assistant' ? handleGenerateVersion : null}
-                        isGenerating={false}
+                        onRegenerateModel={message.role === 'assistant' ? handleRegenerateModel : null}
+                        isGenerating={isGenerating}
+                        generatingVersionMessageId={generatingVersionMessageId}
                         isCollapsed={collapsedMessages.has(message.id)}
                         onToggleCollapse={() => {
                           setCollapsedMessages(prev => {

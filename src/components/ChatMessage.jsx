@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef, Component } from 'react'
-import { User, Bot, RotateCcw, Copy, Check, RefreshCw } from 'lucide-react'
+import { User, Bot, RotateCcw, Copy, Check, RefreshCw, AlertCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -129,7 +129,7 @@ function CodeBlock({ language, codeString, isNovelAgentMode, isFolded, onFoldTog
   )
 }
 
-export default function ChatMessage({ message, onRegenerate, onSelectVersion, onGenerateVersion, isGenerating, isCollapsed, onToggleCollapse, isNovelAgentMode }) {
+export default function ChatMessage({ message, onRegenerate, onSelectVersion, onGenerateVersion, onRegenerateModel, isGenerating, isCollapsed, onToggleCollapse, isNovelAgentMode, generatingVersionMessageId }) {
   const isUser = message.role === 'user'
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false)
   // folded: Map of JSON block key -> boolean (true = collapsed)
@@ -166,6 +166,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
   const selectedVersion = hasVersions ? message.versions[versionIdx] : null
   const isVersionMultiMode = selectedVersion && (selectedVersion.is_multi_mode || (selectedVersion.model && selectedVersion.is_multi_mode === undefined))
   const activeModelTab = isVersionMultiMode ? (selectedVersion.model || null) : null
+  const isFailedVersion = selectedVersion && selectedVersion.status === 'error'
 
   // Pre-parse checkbox positions from content for stable indexing
   const checkboxPositions = useMemo(() => {
@@ -232,17 +233,24 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
             <div className="flex items-center gap-1 ml-1">
               {Object.entries(modelVersionMap).map(([model, vIdx]) => {
                 const isActive = activeModelTab === model
+                const v = message.versions[vIdx]
+                const isError = v && v.status === 'error'
                 return (
                   <button
                     key={model}
                     onClick={() => onSelectVersion?.(message.id, vIdx)}
                     className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium transition-colors ${
                       isActive
-                        ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
-                        : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        ? isError
+                          ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
+                          : 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
+                        : isError
+                          ? 'bg-red-50 text-red-500 hover:bg-red-100'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                     }`}
                   >
                     {MODEL_LABELS[model] || model}
+                    {isError && <AlertCircle size={10} />}
                   </button>
                 )
               })}
@@ -281,6 +289,19 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
         <div className="text-gray-800 break-words">
           {isCollapsed ? (
             <CollapsedContent content={displayedContent} />
+          ) : isFailedVersion ? (
+            <div className="py-4 text-center">
+              <div className="text-sm text-red-500 mb-2">
+                {selectedVersion.error || 'Generation failed'}
+              </div>
+              <button
+                onClick={() => onRegenerateModel?.(message.id, selectedVersion.model)}
+                disabled={isGenerating}
+                className="text-sm text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-50 disabled:no-underline"
+              >
+                Regenerate
+              </button>
+            </div>
           ) : (
             <MarkdownErrorBoundary content={displayedContent}>
               <ReactMarkdown
@@ -406,6 +427,10 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
               </ReactMarkdown>
             </MarkdownErrorBoundary>
           )}
+          {/* Streaming cursor when generating a new version */}
+          {generatingVersionMessageId === message.id && !isCollapsed && !isFailedVersion && (
+            <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
+          )}
         </div>
 
         {/* Bottom action bar for assistant messages */}
@@ -479,11 +504,11 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
             {/* Generate new version button */}
             <button
               onClick={() => onGenerateVersion?.(message.id)}
-              disabled={isGenerating}
-              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200 disabled:opacity-50"
+              disabled={generatingVersionMessageId === message.id}
+              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200"
               title="Generate new version"
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={14} className={generatingVersionMessageId === message.id ? 'animate-spin' : ''} />
             </button>
           </div>
         )}
