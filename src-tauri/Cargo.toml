@@ -1,0 +1,17 @@
+[package]
+name = "chatbot_frontend"
+version = "0.1.0"
+description = "Tauri desktop shell for the chatbot frontend"
+authors = ["vincent"]
+edition = "2021"
+
+[lib]
+name = "chatbot_frontend_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"

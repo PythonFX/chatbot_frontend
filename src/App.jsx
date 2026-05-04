@@ -1136,17 +1136,20 @@ export default function App() {
       <div className="flex-1 flex flex-col md:text-base text-sm">
         {/* Header */}
         <div
-          className="bg-white border-b border-gray-200 px-4 py-3 cursor-pointer flex items-center justify-between"
-          onContextMenu={(e) => {
-            e.preventDefault()
-            setContextMenu({ x: e.clientX, y: e.clientY })
-          }}
+          className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between"
         >
           <div className="flex items-center gap-4 min-w-0 flex-1">
             {isFilesView ? (
               <h1 className="font-semibold text-gray-700">Uploaded Files</h1>
             ) : (
-              <h1 className="font-semibold text-gray-700 truncate">
+              <h1
+                className="font-semibold text-gray-700 truncate cursor-pointer"
+                onClick={(e) => setContextMenu({ x: e.clientX, y: e.clientY })}
+                onContextMenu={(e) => {
+                  e.preventDefault()
+                  setContextMenu({ x: e.clientX, y: e.clientY })
+                }}
+              >
                 {currentConversation?.title || 'Select a conversation'}
               </h1>
             )}
@@ -1252,18 +1255,10 @@ export default function App() {
               style={{ left: contextMenu.x, top: contextMenu.y }}
             >
               <button
-                onClick={collapseAll}
-                disabled={allCollapsed}
-                className="px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={allCollapsed ? uncollapseAll : collapseAll}
+                className="px-4 py-2 text-left text-sm hover:bg-gray-100"
               >
-                Collapse All
-              </button>
-              <button
-                onClick={uncollapseAll}
-                disabled={collapsedMessages.size === 0}
-                className="px-4 py-2 text-left text-sm hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Uncollapse All
+                {allCollapsed ? 'Expand All' : 'Collapse All'}
               </button>
             </div>
           </>

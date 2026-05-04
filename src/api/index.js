@@ -1,7 +1,7 @@
-const API_BASE = '/api'
+import { apiBaseUrl } from '../config/runtime'
 
 async function fetchWithError(url, options = {}) {
-  const response = await fetch(`${API_BASE}${url}`, {
+  const response = await fetch(`${apiBaseUrl}${url}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
@@ -87,7 +87,7 @@ export const api = {
     const formData = new FormData()
     formData.append('file', file)
 
-    const response = await fetch(`${API_BASE}/files/upload`, {
+    const response = await fetch(`${apiBaseUrl}/files/upload`, {
       method: 'POST',
       body: formData,
     })
@@ -135,7 +135,7 @@ export const api = {
       })
     }
 
-    const promise = fetch(`${API_BASE}/chat/stream`, {
+    const promise = fetch(`${apiBaseUrl}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ conversation_id: conversationId, message, resume, deep_qa_mode: deepQAMode, multi_model: multiModelMode }),
@@ -283,7 +283,7 @@ export const api = {
       })
     }
 
-    const promise = fetch(`${API_BASE}/chat/message/${messageId}/versions/stream`, {
+    const promise = fetch(`${apiBaseUrl}/chat/message/${messageId}/versions/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ conversation_id: conversationId }),

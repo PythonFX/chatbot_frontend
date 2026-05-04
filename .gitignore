@@ -7,6 +7,9 @@ node_modules/
 # Build
 dist/
 build/
+src-tauri/target/
+src-tauri/binaries/*
+!src-tauri/binaries/.gitkeep
 
 # IDE
 .idea/

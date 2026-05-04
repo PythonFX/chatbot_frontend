@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Chatbot",
+  "version": "1.0.0",
+  "identifier": "com.vincent.chatbot",
+  "build": {
+    "beforeDevCommand": "npm run dev:tauri-host",
+    "beforeBuildCommand": "npm run build:tauri-host",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Chatbot",
+        "width": 1440,
+        "height": 960,
+        "minWidth": 1100,
+        "minHeight": 720,
+        "resizable": true
+      }
+    ]
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "externalBin": [
+      "binaries/tauri-backend"
+    ]
+  }
+}
