@@ -28,9 +28,9 @@ class MarkdownErrorBoundary extends Component {
   }
 }
 
-function CodeBlock({ language, codeString, isNovelAgentMode, isFolded, onFoldToggle }) {
+function CodeBlock({ language, codeString, isFolded, onFoldToggle }) {
   const [copied, setCopied] = useState(false)
-  const [softWrap, setSoftWrap] = useState(isNovelAgentMode)
+  const [softWrap, setSoftWrap] = useState(false)
   const isJson = language === 'json'
 
   const handleCopy = async () => {
@@ -129,7 +129,7 @@ function CodeBlock({ language, codeString, isNovelAgentMode, isFolded, onFoldTog
   )
 }
 
-export default function ChatMessage({ message, onRegenerate, onSelectVersion, onGenerateVersion, onRegenerateModel, isGenerating, isCollapsed, onToggleCollapse, isNovelAgentMode, generatingVersionMessageId }) {
+export default function ChatMessage({ message, onRegenerate, onSelectVersion, onGenerateVersion, onRegenerateModel, isGenerating, isCollapsed, onToggleCollapse, generatingVersionMessageId }) {
   const isUser = message.role === 'user'
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false)
   // folded: Map of JSON block key -> boolean (true = collapsed)
@@ -329,7 +329,6 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
                       <CodeBlock
                         language={match ? match[1] : null}
                         codeString={codeString}
-                        isNovelAgentMode={isNovelAgentMode}
                         isFolded={isThisFolded}
                         onFoldToggle={isJsonLang ? () => {
                           setFolded(prev => {

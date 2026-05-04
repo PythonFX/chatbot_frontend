@@ -200,10 +200,6 @@ export const api = {
                 } else if (data.type === 'stopped') {
                   onDone?.({ message_id: streamingMessageId, title, content: fullContent, thinking: fullThinking, stopped: true })
                   return true
-                } else if (data.type === 'novel_books') {
-                  callbacks.onNovelBooks?.(data.books)
-                } else if (data.type === 'novel_selected') {
-                  callbacks.onNovelSelected?.(data.book)
                 }
               } catch (e) {
                 // Ignore parse errors for incomplete JSON

@@ -10,7 +10,6 @@ import MessageInput from './components/MessageInput'
 import MultiModelStreamer from './components/MultiModelStreamer'
 import SearchPopup from './components/SearchPopup'
 import FilesList from './components/FilesList'
-import NovelBookPicker from './components/NovelBookPicker'
 import { api } from './api'
 
 // Model switcher dropdown
@@ -126,8 +125,6 @@ export default function App() {
   const [collapsedMessages, setCollapsedMessages] = useState(new Set()) // Set of collapsed message IDs
   const [contextMenu, setContextMenu] = useState(null) // { x, y } for context menu position
   const [deepQAMode, setDeepQAMode] = useState(false) // Deep Q&A mode toggle
-  const [novelAgentMode, setNovelAgentMode] = useState(false) // Novel agent mode
-  const [pendingNovelBooks, setPendingNovelBooks] = useState(null) // Book list waiting for selection
   const [searchPopupOpen, setSearchPopupOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [uploadedFiles, setUploadedFiles] = useState([])
@@ -216,7 +213,6 @@ export default function App() {
     if (urlConversationId) {
       api.getConversation(urlConversationId).then(conv => {
         setCurrentConversation(conv)
-        setNovelAgentMode(conv.is_novel_agent)
       }).catch(err => {
         setError('Failed to load conversation: ' + err.message)
         if (err.message.includes('404') || err.message.includes('not found')) {
@@ -539,7 +535,6 @@ export default function App() {
     try {
       const conv = await api.getConversation(id)
       setCurrentConversation(conv)
-      setNovelAgentMode(conv.is_novel_agent)
       setError(null)
     } catch (err) {
       setError('Failed to load conversation: ' + err.message)
@@ -697,13 +692,6 @@ export default function App() {
             setTimeout(() => setDeepQAStatus(null), 3000)
           }
         },
-        onNovelBooks: (books) => {
-          setPendingNovelBooks(books)
-        },
-        onNovelSelected: (book) => {
-          setPendingNovelBooks(null)
-          setNovelAgentMode(true)
-        },
         onMultiStart: ({ message_id, models, version_map }) => {
           const streams = {}
           models.forEach(m => { streams[m] = { content: '', thinking: '', isDone: false, error: null } })
@@ -769,7 +757,6 @@ export default function App() {
             try {
               const updatedConv = await api.getConversation(conversationId)
               setCurrentConversation(updatedConv)
-              setNovelAgentMode(updatedConv.is_novel_agent)
               await loadConversations()
             } catch (e) {
               console.error('Failed to refresh conversation:', e)
@@ -1326,7 +1313,6 @@ export default function App() {
                             return next
                           })
                         }}
-                        isNovelAgentMode={novelAgentMode}
                       />
                     </div>
                   ))}
@@ -1499,19 +1485,6 @@ export default function App() {
         />
       )}
 
-      {/* Novel Book Picker */}
-      {pendingNovelBooks !== null && (
-        <NovelBookPicker
-          books={pendingNovelBooks}
-          onSelect={(number) => {
-            if (number === null) {
-              setPendingNovelBooks(null)
-            } else {
-              handleSendMessage(number)
-            }
-          }}
-        />
-      )}
     </div>
   )
 }
