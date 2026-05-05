@@ -296,15 +296,13 @@ export default function App() {
               setStreamingThinking('')
               setStreamingMessageId(null)
               setIsGenerating(false)
-              if (!stopped) {
-                // Refresh conversation to get the complete saved message
-                try {
-                  const updatedConv = await api.getConversation(currentConversation.id)
-                  setCurrentConversation(updatedConv)
-                  await loadConversations()
-                } catch (e) {
-                  console.error('Failed to refresh conversation:', e)
-                }
+              // Refresh conversation to get the complete saved message (also needed on stop — backend saves partial content)
+              try {
+                const updatedConv = await api.getConversation(currentConversation.id)
+                setCurrentConversation(updatedConv)
+                if (!stopped) await loadConversations()
+              } catch (e) {
+                console.error('Failed to refresh conversation:', e)
               }
             },
             onError: (errMsg) => {
@@ -761,6 +759,14 @@ export default function App() {
               await loadConversations()
             } catch (e) {
               console.error('Failed to refresh conversation:', e)
+            }
+          } else {
+            // Stopped — backend has saved partial content, refresh to display it
+            try {
+              const updatedConv = await api.getConversation(conversationId)
+              setCurrentConversation(updatedConv)
+            } catch (e) {
+              console.error('Failed to refresh conversation after stop:', e)
             }
           }
         },
