@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 export default function MessageInput({ onSendMessage, onStopGeneration, isGenerating, deepQAMode, onToggleDeepQAMode }) {
   const [input, setInput] = useState('')
   const textareaRef = useRef(null)
+  const isComposingRef = useRef(false)
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -24,10 +25,16 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSubmit(e)
+    if (e.key !== 'Enter') return
+    if (e.shiftKey) return
+
+    const nativeEvent = e.nativeEvent
+    if (isComposingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229) {
+      return
     }
+
+    e.preventDefault()
+    handleSubmit(e)
   }
 
   return (
@@ -37,6 +44,8 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onCompositionStart={() => { isComposingRef.current = true }}
+          onCompositionEnd={() => { isComposingRef.current = false }}
           onKeyDown={handleKeyDown}
           placeholder="Message..."
           rows={1}
