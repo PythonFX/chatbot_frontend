@@ -41,7 +41,6 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
           placeholder="Message..."
           rows={1}
           className="flex-1 resize-none outline-none max-h-36 text-gray-800 placeholder-gray-400"
-          disabled={isGenerating}
         />
         <div className="flex items-center gap-2">
           {/* Deep QA Mode Toggle */}

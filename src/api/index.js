@@ -252,6 +252,9 @@ export const api = {
     }
   },
 
+  stopGeneration: (conversationId) =>
+    fetchWithError(`/chat/stop/${conversationId}`, { method: 'POST' }),
+
   regenerateResponse: (conversationId, messageId) =>
     fetchWithError('/chat/regenerate', {
       method: 'POST',
