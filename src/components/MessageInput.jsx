@@ -5,11 +5,14 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
   const [input, setInput] = useState('')
   const textareaRef = useRef(null)
   const isComposingRef = useRef(false)
+  const [isMultiline, setIsMultiline] = useState(false)
 
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 150) + 'px'
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 150)
+      textareaRef.current.style.height = newHeight + 'px'
+      setIsMultiline(newHeight > 38)
     }
   }, [input])
 
@@ -39,7 +42,7 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
 
   return (
     <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200">
-      <div className="flex items-end gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm">
+      <div className={`flex gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm ${isMultiline ? 'items-end' : 'items-center'}`}>
         <textarea
           ref={textareaRef}
           value={input}
