@@ -336,11 +336,10 @@ export default function App() {
     }
   }
 
-  // Scroll to bottom unconditionally (used on stream end)
+  // Scroll to bottom on stream end (respects user scroll)
   const scrollToBottomForced = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.parentElement.scrollTo({ top: messagesEndRef.current.parentElement.scrollHeight, behavior: 'instant' })
-    }
+    if (!autoScrollRef.current || !messagesEndRef.current) return
+    messagesEndRef.current.parentElement.scrollTo({ top: messagesEndRef.current.parentElement.scrollHeight, behavior: 'instant' })
   }
 
   // Scroll to a specific message by index
