@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, createContext, useContext } from 'react'
 import { Bot, Check, Copy, AlertCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -10,6 +10,8 @@ const MODEL_LABELS = {
   'glm5.1': 'GLM-5.1',
   'kimi-k2.6': 'Kimi K2.6',
 }
+
+const IsInPreContext = createContext(false)
 
 function StreamingCodeBlock({ language, codeString }) {
   const [copied, setCopied] = useState(false)
@@ -25,7 +27,7 @@ function StreamingCodeBlock({ language, codeString }) {
   }
 
   return (
-    <div className="rounded-lg overflow-hidden my-2 text-sm">
+    <div className="rounded overflow-hidden my-2 text-sm block">
       <div className="bg-gray-800 px-3 py-1 text-gray-400 text-xs flex justify-between items-center">
         <span>{language || 'code'}</span>
         <button
@@ -49,17 +51,21 @@ function StreamingCodeBlock({ language, codeString }) {
 }
 
 const markdownComponents = {
-  code({ node, inline, className, children, ...props }) {
+  code({ node, className, children, ...props }) {
     const match = /language-(\w+)/.exec(className || '')
     const codeString = String(children).replace(/\n$/, '')
-    if (inline) {
+    const isInPre = useContext(IsInPreContext)
+    if (!isInPre) {
       return (
-        <code className="bg-gray-200 text-pink-600 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+        <code className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
           {children}
         </code>
       )
     }
     return <StreamingCodeBlock language={match ? match[1] : null} codeString={codeString} />
+  },
+  pre({ children }) {
+    return <IsInPreContext.Provider value={true}>{children}</IsInPreContext.Provider>
   },
   table({ children }) {
     return <div className="overflow-x-auto my-3"><table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg">{children}</table></div>

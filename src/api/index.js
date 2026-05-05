@@ -128,6 +128,7 @@ export const api = {
     let fullThinking = ''
     let title = null
     let isAborted = false
+    let streamEndedNormally = false
 
     if (signal) {
       signal.addEventListener('abort', () => {
@@ -192,12 +193,15 @@ export const api = {
                     onThinking?.(fullThinking)
                   }
                 } else if (data.type === 'done') {
+                  streamEndedNormally = true
                   onDone?.({ message_id: data.message_id, title: data.title, content: fullContent, thinking: fullThinking })
                   return true // Stream complete
                 } else if (data.type === 'error') {
+                  streamEndedNormally = true
                   onError?.(data.error)
                   return true
                 } else if (data.type === 'stopped') {
+                  streamEndedNormally = true
                   onDone?.({ message_id: streamingMessageId, title, content: fullContent, thinking: fullThinking, stopped: true })
                   return true
                 }
@@ -216,6 +220,9 @@ export const api = {
             if (done) {
               if (buffer) {
                 processBuffer()
+              }
+              if (!streamEndedNormally && !isAborted) {
+                onError?.('Stream ended unexpectedly')
               }
               return
             }
@@ -272,6 +279,7 @@ export const api = {
   generateVersionStream: (messageId, conversationId, callbacks) => {
     const { onChunk, onThinking, onDone, onError, onStart, signal } = callbacks
     let isAborted = false
+    let streamEndedNormally = false
 
     if (signal) {
       signal.addEventListener('abort', () => {
@@ -311,9 +319,11 @@ export const api = {
                 } else if (data.type === 'thinking') {
                   onThinking?.(data.thinking)
                 } else if (data.type === 'done') {
+                  streamEndedNormally = true
                   onDone?.(data)
                   return true
                 } else if (data.type === 'error') {
+                  streamEndedNormally = true
                   onError?.(data.error)
                   return true
                 }
@@ -332,6 +342,9 @@ export const api = {
             if (done) {
               if (buffer) {
                 processBuffer()
+              }
+              if (!streamEndedNormally && !isAborted) {
+                onError?.('Stream ended unexpectedly')
               }
               return
             }

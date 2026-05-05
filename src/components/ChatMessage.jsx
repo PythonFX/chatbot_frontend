@@ -1,9 +1,11 @@
-import { useState, useMemo, useEffect, useRef, Component } from 'react'
+import { useState, useMemo, useEffect, useRef, Component, createContext, useContext } from 'react'
 import { User, Bot, RotateCcw, Copy, Check, RefreshCw, AlertCircle } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+
+const IsInPreContext = createContext(false)
 
 // Error boundary for markdown parsing
 class MarkdownErrorBoundary extends Component {
@@ -44,7 +46,7 @@ function CodeBlock({ language, codeString, isFolded, onFoldToggle }) {
   }
 
   return (
-    <div className="rounded-lg overflow-visible my-2 text-sm inline-block max-w-full">
+    <div className="rounded overflow-hidden my-2 text-sm block">
       <div className="bg-gray-800 px-3 py-1 text-gray-400 text-xs flex justify-between items-center">
         <div className="flex items-center gap-2">
           <span>{language || 'code'}</span>
@@ -110,8 +112,6 @@ function CodeBlock({ language, codeString, isFolded, onFoldToggle }) {
               wordBreak: softWrap ? 'break-all' : 'normal',
               overflowWrap: 'break-word',
               boxSizing: 'border-box',
-              display: 'inline-block',
-              minWidth: 'min-content',
             }}
             codeTagProps={{
               style: {
@@ -307,14 +307,15 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
-                  code({ node, inline, className, children, ...props }) {
+                  code({ node, className, children, ...props }) {
                     const match = /language-(\w+)/.exec(className || '')
                     const codeString = String(children).replace(/\n$/, '')
+                    const isInPre = useContext(IsInPreContext)
 
                     // Inline code - short snippets within text
-                    if (inline) {
+                    if (!isInPre) {
                       return (
-                        <code className="bg-gray-200 text-pink-600 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                        <code className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
                           {children}
                         </code>
                       )
@@ -339,6 +340,9 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
                         } : undefined}
                       />
                     )
+                  },
+                  pre({ children }) {
+                    return <IsInPreContext.Provider value={true}>{children}</IsInPreContext.Provider>
                   },
                   p({ children }) {
                     return <p className="mb-2 last:mb-0">{children}</p>

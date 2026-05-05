@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Bot, Copy, Check, Upload, X, FileText, MessageSquare, RefreshCw, Layers } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
@@ -64,6 +64,8 @@ function DeepQAThinking() {
   )
 }
 
+const IsInPreContext = createContext(false)
+
 function StreamingCodeBlock({ language, codeString }) {
   const [copied, setCopied] = useState(false)
 
@@ -78,7 +80,7 @@ function StreamingCodeBlock({ language, codeString }) {
   }
 
   return (
-    <div className="rounded-lg overflow-hidden my-2 text-sm">
+    <div className="rounded overflow-hidden my-2 text-sm block">
       <div className="bg-gray-800 px-3 py-1 text-gray-400 text-xs flex justify-between items-center">
         <span>{language || 'code'}</span>
         <button
@@ -763,14 +765,24 @@ export default function App() {
             }
           }
         },
-        onError: (errMsg) => {
+        onError: async (errMsg) => {
           streamAbortRef.current = null
           setError('Failed to send message: ' + errMsg)
           setStreamingContent('')
           setStreamingThinking('')
           setStreamingMessageId(null)
+          setMultiStreamingState(null)
           setIsGenerating(false)
-          // Remove optimistic assistant message on error
+          // Try refreshing from backend — partial content may have been saved
+          try {
+            const updatedConv = await api.getConversation(conversationId)
+            if (updatedConv) {
+              setCurrentConversation(updatedConv)
+              return
+            }
+          } catch (e) {
+            // Refresh failed, fall through to remove optimistic message
+          }
           setCurrentConversation((prev) => ({
             ...prev,
             messages: prev.messages.filter((m) => !m.id.startsWith('optimistic-')),
@@ -1354,14 +1366,15 @@ export default function App() {
                       <div className="text-gray-800 break-words">
                         <ReactMarkdown
                           components={{
-                            code({ node, inline, className, children, ...props }) {
+                            code({ node, className, children, ...props }) {
                               const match = /language-(\w+)/.exec(className || '')
                               const codeString = String(children).replace(/\n$/, '')
+                              const isInPre = useContext(IsInPreContext)
 
                               // Inline code
-                              if (inline) {
+                              if (!isInPre) {
                                 return (
-                                  <code className="bg-gray-200 text-pink-600 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
+                                  <code className="bg-gray-200 text-gray-800 px-1.5 py-0.5 rounded text-sm font-mono" {...props}>
                                     {children}
                                   </code>
                                 )
@@ -1369,6 +1382,9 @@ export default function App() {
 
                               // Code block with copy button
                               return <StreamingCodeBlock language={match ? match[1] : null} codeString={codeString} />
+                            },
+                            pre({ children }) {
+                              return <IsInPreContext.Provider value={true}>{children}</IsInPreContext.Provider>
                             },
                             table({ children }) {
                               return <div className="overflow-x-auto my-3"><table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg">{children}</table></div>
