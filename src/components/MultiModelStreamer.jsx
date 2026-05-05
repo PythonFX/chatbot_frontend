@@ -27,7 +27,7 @@ function StreamingCodeBlock({ language, codeString }) {
   }
 
   return (
-    <div className="rounded overflow-hidden my-2 text-sm block">
+    <div className="rounded-lg overflow-hidden my-2 text-sm inline-block max-w-full">
       <div className="bg-gray-800 px-3 py-1 text-gray-400 text-xs flex justify-between items-center">
         <span>{language || 'code'}</span>
         <button
@@ -65,7 +65,7 @@ const markdownComponents = {
     return <StreamingCodeBlock language={match ? match[1] : null} codeString={codeString} />
   },
   pre({ children }) {
-    return <IsInPreContext.Provider value={true}>{children}</IsInPreContext.Provider>
+    return <div className="block"><IsInPreContext.Provider value={true}>{children}</IsInPreContext.Provider></div>
   },
   table({ children }) {
     return <div className="overflow-x-auto my-3"><table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg">{children}</table></div>

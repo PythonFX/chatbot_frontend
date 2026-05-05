@@ -46,7 +46,7 @@ function CodeBlock({ language, codeString, isFolded, onFoldToggle }) {
   }
 
   return (
-    <div className="rounded overflow-hidden my-2 text-sm block">
+    <div className="rounded-lg overflow-hidden my-2 text-sm inline-block max-w-full">
       <div className="bg-gray-800 px-3 py-1 text-gray-400 text-xs flex justify-between items-center">
         <div className="flex items-center gap-2">
           <span>{language || 'code'}</span>
@@ -342,7 +342,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
                     )
                   },
                   pre({ children }) {
-                    return <IsInPreContext.Provider value={true}>{children}</IsInPreContext.Provider>
+                    return <div className="block"><IsInPreContext.Provider value={true}>{children}</IsInPreContext.Provider></div>
                   },
                   p({ children }) {
                     return <p className="mb-2 last:mb-0">{children}</p>
