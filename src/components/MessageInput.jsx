@@ -1,8 +1,10 @@
-import { Square, Flame, ArrowUp, Users } from 'lucide-react'
-import { useState, useRef, useEffect } from 'react'
+import { Square, Flame, ArrowUp, Users, Lock } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 export default function MessageInput({ onSendMessage, onStopGeneration, isGenerating, deepQAMode, onToggleDeepQAMode, hasFiles, multiModelMode, onToggleMultiModelMode }) {
   const [input, setInput] = useState('')
+  const [locked, setLocked] = useState(false)
+  const [shaking, setShaking] = useState(false)
   const textareaRef = useRef(null)
   const isComposingRef = useRef(false)
 
@@ -14,8 +16,16 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
     }
   }, [input])
 
-  const handleSubmit = (e) => {
-    e.preventDefault()
+  const triggerShake = useCallback(() => {
+    setShaking(true)
+    setTimeout(() => setShaking(false), 500)
+  }, [])
+
+  const handleSubmit = () => {
+    if (locked) {
+      triggerShake()
+      return
+    }
     if (input.trim() && !isGenerating) {
       onSendMessage(input.trim())
       setInput('')
@@ -35,12 +45,24 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
     }
 
     e.preventDefault()
-    handleSubmit(e)
+    if (locked) {
+      triggerShake()
+      return
+    }
+    handleSubmit()
+  }
+
+  const handleSendContextMenu = (e) => {
+    e.preventDefault()
+    setLocked(prev => !prev)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="px-4 pb-4 pt-2">
-      <div className="bg-white rounded-[28px] shadow-md overflow-hidden">
+    <div className="relative z-10 -mt-[24px] pt-[24px] px-4 pb-4">
+      {/* Gradient fade above capsule - covers message content in overlap zone */}
+      <div className="absolute top-0 left-4 right-4 h-[24px] bg-gradient-to-b from-transparent to-[rgba(0,0,0,0.06)] rounded-t-[28px] pointer-events-none" />
+      <div className="bg-white rounded-[28px] shadow-[0_0_20px_rgba(0,0,0,0.12)]">
+        <div className="overflow-hidden rounded-[28px]">
         {/* Textarea area */}
         <div className="px-5 pt-3 pb-2">
           <textarea
@@ -105,19 +127,27 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
               </button>
             )}
             <button
-              type="submit"
+              type="button"
+              onClick={handleSubmit}
+              onContextMenu={handleSendContextMenu}
               disabled={!input.trim() || isGenerating}
               className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${
-                input.trim() && !isGenerating
-                  ? 'bg-gray-800 hover:bg-gray-900 text-white shadow-sm'
-                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-              }`}
+                locked
+                  ? input.trim() && !isGenerating
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-sm'
+                    : 'bg-amber-200 text-amber-400 cursor-not-allowed'
+                  : input.trim() && !isGenerating
+                    ? 'bg-gray-800 hover:bg-gray-900 text-white shadow-sm'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              } ${shaking ? 'animate-[shake_0.5s_ease-in-out]' : ''}`}
+              title={locked ? 'Send locked - right-click to unlock' : 'Send message (right-click to lock)'}
             >
-              <ArrowUp size={18} strokeWidth={2.5} />
+              {locked ? <Lock size={16} /> : <ArrowUp size={18} strokeWidth={2.5} />}
             </button>
           </div>
         </div>
+        </div>
       </div>
-    </form>
+    </div>
   )
 }

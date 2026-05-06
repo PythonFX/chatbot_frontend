@@ -1280,7 +1280,7 @@ export default function App() {
         )}
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto pb-[60px] bg-gray-50" onWheel={handleUserScroll} onTouchMove={handleUserScroll}>
+        <div className="flex-1 overflow-y-auto bg-gray-50" onWheel={handleUserScroll} onTouchMove={handleUserScroll}>
           {isFilesView ? (
             loadingFiles ? (
               <div className="flex items-center justify-center h-full text-gray-400">
