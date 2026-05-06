@@ -1,18 +1,16 @@
-import { Send, Square, Flame } from 'lucide-react'
+import { Square, Flame, ArrowUp } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
 export default function MessageInput({ onSendMessage, onStopGeneration, isGenerating, deepQAMode, onToggleDeepQAMode }) {
   const [input, setInput] = useState('')
   const textareaRef = useRef(null)
   const isComposingRef = useRef(false)
-  const [isMultiline, setIsMultiline] = useState(false)
 
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto'
-      const newHeight = Math.min(textareaRef.current.scrollHeight, 150)
+      const newHeight = Math.min(textareaRef.current.scrollHeight, 200)
       textareaRef.current.style.height = newHeight + 'px'
-      setIsMultiline(newHeight > 38)
     }
   }, [input])
 
@@ -41,54 +39,67 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
   }
 
   return (
-    <form onSubmit={handleSubmit} className="p-4 border-t border-gray-200">
-      <div className={`flex gap-2 bg-white border border-gray-200 rounded-xl px-4 py-2 shadow-sm ${isMultiline ? 'items-end' : 'items-center'}`}>
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onCompositionStart={() => { isComposingRef.current = true }}
-          onCompositionEnd={() => { isComposingRef.current = false }}
-          onKeyDown={handleKeyDown}
-          placeholder="Message..."
-          rows={1}
-          className="flex-1 resize-none outline-none max-h-36 text-gray-800 placeholder-gray-400"
-        />
-        <div className="flex items-center gap-2">
-          {/* Deep QA Mode Toggle */}
+    <form onSubmit={handleSubmit} className="px-4 pb-4 pt-2">
+      <div className="bg-white rounded-[28px] shadow-md overflow-hidden">
+        {/* Textarea area */}
+        <div className="px-5 pt-3 pb-2">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onCompositionStart={() => { isComposingRef.current = true }}
+            onCompositionEnd={() => { isComposingRef.current = false }}
+            onKeyDown={handleKeyDown}
+            placeholder="Message..."
+            rows={1}
+            className="w-full resize-none outline-none max-h-[200px] text-gray-800 placeholder-gray-400 text-[15px] leading-6"
+          />
+        </div>
+
+        {/* Divider */}
+        <div className="border-t border-gray-100 mx-4" />
+
+        {/* Bottom toolbar */}
+        <div className="flex items-center justify-between px-3 py-2">
+          {/* Left side: Deep Think pill button */}
           <button
             type="button"
             onClick={onToggleDeepQAMode}
-            className={`p-2 rounded-lg transition-colors ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
               deepQAMode
-                ? 'text-orange-500 bg-orange-50 hover:bg-orange-100'
-                : 'text-gray-400 hover:bg-gray-100'
+                ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
             }`}
             title={deepQAMode ? 'Deep Q&A Mode (ON)' : 'Deep Q&A Mode (OFF)'}
           >
-            <Flame size={18} />
+            <Flame size={16} />
+            <span>Deep Think</span>
           </button>
-          {isGenerating && (
+
+          {/* Right side: Stop + Send */}
+          <div className="flex items-center gap-1">
+            {isGenerating && (
+              <button
+                type="button"
+                onClick={onStopGeneration}
+                className="p-1.5 text-red-500 hover:bg-red-50 rounded-full transition-colors"
+                title="Stop generation"
+              >
+                <Square size={18} fill="currentColor" />
+              </button>
+            )}
             <button
-              type="button"
-              onClick={onStopGeneration}
-              className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-              title="Stop generation"
+              type="submit"
+              disabled={!input.trim() || isGenerating}
+              className={`w-8 h-8 flex items-center justify-center rounded-full transition-all ${
+                input.trim() && !isGenerating
+                  ? 'bg-gray-800 hover:bg-gray-900 text-white shadow-sm'
+                  : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+              }`}
             >
-              <Square size={18} />
+              <ArrowUp size={18} strokeWidth={2.5} />
             </button>
-          )}
-          <button
-            type="submit"
-            disabled={!input.trim() || isGenerating}
-            className={`p-2 rounded-lg transition-colors ${
-              input.trim() && !isGenerating
-                ? 'text-blue-500 hover:bg-blue-50'
-                : 'text-gray-300 cursor-not-allowed'
-            }`}
-          >
-            <Send size={18} />
-          </button>
+          </div>
         </div>
       </div>
     </form>
