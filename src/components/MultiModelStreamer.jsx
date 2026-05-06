@@ -5,12 +5,6 @@ import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
-const MODEL_LABELS = {
-  minimax: 'Minimax',
-  'glm5.1': 'GLM-5.1',
-  'kimi-k2.6': 'Kimi K2.6',
-}
-
 const IsInPreContext = createContext(false)
 
 function StreamingCodeBlock({ language, codeString }) {
@@ -121,7 +115,7 @@ export default function MultiModelStreamer({ multiStreamingState, onTabChange })
                       : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                   }`}
                 >
-                  {MODEL_LABELS[model] || model}
+                  {model}
                   {statusIcon}
                 </button>
               )
