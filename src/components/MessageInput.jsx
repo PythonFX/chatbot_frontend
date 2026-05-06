@@ -58,10 +58,8 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
   }
 
   return (
-    <div className="relative z-10 -mt-[24px] pt-[24px] px-4 pb-4">
-      {/* Gradient fade above capsule - covers message content in overlap zone */}
-      <div className="absolute top-0 left-4 right-4 h-[24px] bg-gradient-to-b from-transparent to-[rgba(0,0,0,0.06)] rounded-t-[28px] pointer-events-none" />
-      <div className="bg-white rounded-[28px] shadow-[0_0_20px_rgba(0,0,0,0.12)]">
+    <div className="relative z-10 -mt-10 px-4 pb-4 pt-10">
+      <div className="message-input-shell bg-white rounded-[28px]">
         <div className="overflow-hidden rounded-[28px]">
         {/* Textarea area */}
         <div className="px-5 pt-3 pb-2">
