@@ -1482,6 +1482,9 @@ export default function App() {
             isGenerating={isGenerating}
             deepQAMode={deepQAMode}
             onToggleDeepQAMode={() => setDeepQAMode(prev => !prev)}
+            hasFiles={currentConversation?.file_ids?.length > 0}
+            multiModelMode={multiModelMode}
+            onToggleMultiModelMode={() => setMultiModelMode(prev => !prev)}
           />
         )}
 
