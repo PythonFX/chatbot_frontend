@@ -10,6 +10,7 @@ import MessageInput from './components/MessageInput'
 import MultiModelStreamer from './components/MultiModelStreamer'
 import SearchPopup from './components/SearchPopup'
 import FilesList from './components/FilesList'
+import ToastContainer from './components/Toast'
 import { api } from './api'
 
 // Model switcher dropdown
@@ -1506,6 +1507,7 @@ export default function App() {
         />
       )}
 
+      <ToastContainer />
     </div>
   )
 }

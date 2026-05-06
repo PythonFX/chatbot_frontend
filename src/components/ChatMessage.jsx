@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef, Component, createContext, useContext } from 'react'
 import { User, Bot, RotateCcw, Copy, Check, RefreshCw, AlertCircle } from 'lucide-react'
+import { showToast } from './Toast'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -444,11 +445,12 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
               onClick={async () => {
                 try {
                   await navigator.clipboard.writeText(displayedContent)
+                  showToast('Copied to clipboard')
                 } catch (err) {
                   console.error('Failed to copy:', err)
                 }
               }}
-              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200"
+              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-600"
               title="Copy response"
             >
               <Copy size={14} />
@@ -459,7 +461,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
               <button
                 onClick={() => onRegenerate(message.id)}
                 disabled={isGenerating}
-                className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200 disabled:opacity-50"
+                className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-600 disabled:opacity-50"
                 title="Regenerate response"
               >
                 <RotateCcw size={14} />
@@ -476,7 +478,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
                     const newIdx = currentIdx <= 0 ? totalVersions - 1 : currentIdx - 1
                     onSelectVersion(message.id, newIdx)
                   }}
-                  className="hover:text-gray-200 px-1"
+                  className="hover:text-gray-600 px-1"
                   title="Previous version"
                 >
                   ‹
@@ -491,7 +493,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
                     const newIdx = currentIdx >= totalVersions - 1 ? 0 : currentIdx + 1
                     onSelectVersion(message.id, newIdx)
                   }}
-                  className="hover:text-gray-200 px-1"
+                  className="hover:text-gray-600 px-1"
                   title="Next version"
                 >
                   ›
@@ -508,7 +510,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
             <button
               onClick={() => onGenerateVersion?.(message.id)}
               disabled={generatingVersionMessageId === message.id}
-              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-200"
+              className="p-1 hover:bg-gray-200 rounded transition-colors text-gray-400 hover:text-gray-600"
               title="Generate new version"
             >
               <RefreshCw size={14} className={generatingVersionMessageId === message.id ? 'animate-spin' : ''} />
