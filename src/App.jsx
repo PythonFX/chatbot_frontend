@@ -8,6 +8,7 @@ import Sidebar from './components/Sidebar'
 import ChatMessage from './components/ChatMessage'
 import MessageInput from './components/MessageInput'
 import MultiModelStreamer from './components/MultiModelStreamer'
+import GroupChatStreamer from './components/GroupChatStreamer'
 import SearchPopup from './components/SearchPopup'
 import FilesList from './components/FilesList'
 import ToastContainer from './components/Toast'
@@ -141,6 +142,9 @@ export default function App() {
   const [loadingFiles, setLoadingFiles] = useState(false) // Loading files from backend
   const [messageVersions, setMessageVersions] = useState({}) // { [messageId]: { selectedIndex: number|null, versions: array } }
   const [generatingVersionMessageId, setGeneratingVersionMessageId] = useState(null) // Message ID currently generating a new version
+  const [groupChatMode, setGroupChatMode] = useState(false) // Group chat mode toggle
+  const [groupChatAgents, setGroupChatAgents] = useState([]) // Available agents for group chat
+  const [groupChatStreamingState, setGroupChatStreamingState] = useState(null) // Group chat streaming state
 
   // Persist messageVersions to localStorage on change
   useEffect(() => {
@@ -505,6 +509,8 @@ export default function App() {
     setStreamingThinking('')
     setStreamingMessageId(null)
     setIsGenerating(false)
+    setGroupChatMode(false)
+    setGroupChatStreamingState(null)
 
     try {
       const newConv = await api.createConversation()
@@ -528,6 +534,7 @@ export default function App() {
     setStreamingThinking('')
     setStreamingMessageId(null)
     setIsGenerating(false)
+    setGroupChatStreamingState(null)
 
     // Update URL
     navigate(`/conversation/${id}`)
@@ -535,6 +542,7 @@ export default function App() {
     try {
       const conv = await api.getConversation(id)
       setCurrentConversation(conv)
+      setGroupChatMode(conv.type === 'group_chat')
       setError(null)
     } catch (err) {
       setError('Failed to load conversation: ' + err.message)
@@ -596,6 +604,11 @@ export default function App() {
 
   const handleSendMessage = async (message) => {
     if (!currentConversation) return
+
+    // Route to group chat handler if in group chat mode
+    if (groupChatMode || currentConversation.type === 'group_chat') {
+      return handleSendGroupChatMessage(message)
+    }
 
     const conversationId = currentConversation.id // Capture to avoid stale closure
     const conversationTitle = currentConversation.title
@@ -970,6 +983,178 @@ export default function App() {
     }
   }
 
+  const handleToggleGroupChatMode = async () => {
+    // If already in a group chat, just toggle the UI mode
+    if (currentConversation?.type === 'group_chat') {
+      setGroupChatMode(prev => !prev)
+      return
+    }
+
+    // If toggling on, create a new group chat conversation
+    if (!groupChatMode) {
+      try {
+        // Fetch available agents
+        const agentsData = await api.getGroupChatAgents()
+        const availableAgents = (agentsData.agents || []).filter(a => a.available).map(a => a.id)
+        if (availableAgents.length < 2) {
+          setError('Need at least 2 available models for group chat')
+          return
+        }
+        setGroupChatAgents(agentsData.agents || [])
+
+        // Create a group chat conversation with all available agents
+        const conv = await api.createGroupChat(availableAgents)
+
+        // Clear current state
+        setStreamingContent('')
+        setStreamingThinking('')
+        setStreamingMessageId(null)
+        setIsGenerating(false)
+        setMultiStreamingState(null)
+        setGroupChatMode(true)
+
+        setCurrentConversation(conv)
+        navigate(`/conversation/${conv.id}`)
+        await loadConversations()
+        setError(null)
+      } catch (err) {
+        setError('Failed to create group chat: ' + err.message)
+      }
+    } else {
+      setGroupChatMode(false)
+    }
+  }
+
+  const handleSendGroupChatMessage = async (message) => {
+    if (!currentConversation) return
+    const conversationId = currentConversation.id
+    const conversationTitle = currentConversation.title
+
+    setIsGenerating(true)
+    setError(null)
+    setGroupChatStreamingState({
+      phase: 'evaluating',
+      evaluations: [],
+      speakingAgent: null,
+      streamingContent: '',
+      streamingThinking: '',
+      agentDone: false,
+    })
+
+    // Reset auto-scroll
+    autoScrollRef.current = true
+    chunkTextLenRef.current = 0
+
+    // Optimistically add user message
+    const userMsg = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: message,
+      created_at: new Date().toISOString(),
+    }
+    setCurrentConversation(prev => ({
+      ...prev,
+      messages: [...prev.messages, userMsg],
+    }))
+    setTimeout(scrollToBottom, 0)
+
+    const abortController = new AbortController()
+    streamAbortRef.current = abortController
+
+    api.sendGroupChatStream(conversationId, message, {
+      signal: abortController.signal,
+      onRoundStart: (round) => {
+        setGroupChatStreamingState(prev => prev ? {
+          ...prev,
+          phase: 'evaluating',
+          evaluations: [],
+          speakingAgent: null,
+          streamingContent: '',
+          streamingThinking: '',
+          agentDone: false,
+        } : prev)
+      },
+      onEvaluation: (data) => {
+        setGroupChatStreamingState(prev => prev ? {
+          ...prev,
+          evaluations: [...prev.evaluations, data],
+        } : prev)
+      },
+      onAgentSpeaking: (data) => {
+        setGroupChatStreamingState(prev => prev ? {
+          ...prev,
+          phase: 'speaking',
+          speakingAgent: data,
+          streamingContent: '',
+          streamingThinking: '',
+          agentDone: false,
+        } : prev)
+        scrollToBottom()
+      },
+      onChunk: (agentId, text) => {
+        setGroupChatStreamingState(prev => prev ? {
+          ...prev,
+          streamingContent: prev.streamingContent + text,
+        } : prev)
+        const newLen = (groupChatStreamingState?.streamingContent?.length || 0) + text.length
+        if (newLen - chunkTextLenRef.current >= 100) {
+          scrollToBottom()
+          chunkTextLenRef.current = newLen
+        }
+      },
+      onThinking: (agentId, thinking) => {
+        setGroupChatStreamingState(prev => prev ? {
+          ...prev,
+          streamingThinking: prev.streamingThinking + thinking,
+        } : prev)
+        scrollToBottom()
+      },
+      onAgentDone: (agentId) => {
+        setGroupChatStreamingState(prev => prev ? {
+          ...prev,
+          agentDone: true,
+        } : prev)
+      },
+      onRoundEnd: (reason) => {
+        // Round ended
+      },
+      onDone: async () => {
+        streamAbortRef.current = null
+        setGroupChatStreamingState(null)
+        setIsGenerating(false)
+        setTimeout(scrollToBottomForced, 200)
+        try {
+          const updatedConv = await api.getConversation(conversationId)
+          setCurrentConversation(updatedConv)
+          await loadConversations()
+        } catch (e) {
+          console.error('Failed to refresh conversation:', e)
+        }
+      },
+      onError: async (errMsg) => {
+        streamAbortRef.current = null
+        setError('Group chat error: ' + errMsg)
+        setGroupChatStreamingState(null)
+        setIsGenerating(false)
+        try {
+          const updatedConv = await api.getConversation(conversationId)
+          if (updatedConv) setCurrentConversation(updatedConv)
+        } catch (e) {
+          // Refresh failed
+        }
+      },
+    })
+  }
+
+  const handleStopGroupChat = async () => {
+    if (!currentConversation) return
+    try {
+      await api.stopGroupChat(currentConversation.id)
+    } catch (err) {
+      setError('Failed to stop group chat: ' + err.message)
+    }
+  }
+
   const handleBrowseFiles = () => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -1184,7 +1369,18 @@ export default function App() {
           {/* Model switcher + multi-model toggle - shown when not on /files */}
           {!isFilesView && (
             <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-              {!multiModelMode && (
+              {/* Group chat agent badges */}
+              {(groupChatMode || currentConversation?.type === 'group_chat') && currentConversation?.agents?.length > 0 && (
+                <div className="flex items-center gap-1 mr-2">
+                  <span className="text-xs text-violet-500 font-medium">Group:</span>
+                  {currentConversation.agents.map(agentId => (
+                    <span key={agentId} className="px-2 py-0.5 bg-violet-50 text-violet-700 rounded-full text-xs font-medium">
+                      {agentId}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {!multiModelMode && !(groupChatMode || currentConversation?.type === 'group_chat') && (
                 <div className="relative">
                   <button
                     onClick={() => setModelSwitcherOpen(prev => !prev)}
@@ -1336,7 +1532,9 @@ export default function App() {
                   ))}
 
                 {/* Streaming message */}
-                {multiStreamingState && streamingMessageId ? (
+                {groupChatStreamingState ? (
+                  <GroupChatStreamer state={groupChatStreamingState} />
+                ) : multiStreamingState && streamingMessageId ? (
                   <MultiModelStreamer
                     multiStreamingState={multiStreamingState}
                     onTabChange={(tab) => setMultiStreamingState(prev => prev ? { ...prev, activeTab: tab } : prev)}
@@ -1478,13 +1676,16 @@ export default function App() {
         {!isFilesView && (
           <MessageInput
             onSendMessage={handleSendMessage}
-            onStopGeneration={handleStopGeneration}
+            onStopGeneration={groupChatMode || currentConversation?.type === 'group_chat' ? handleStopGroupChat : handleStopGeneration}
             isGenerating={isGenerating}
             deepQAMode={deepQAMode}
             onToggleDeepQAMode={() => setDeepQAMode(prev => !prev)}
             hasFiles={currentConversation?.file_ids?.length > 0}
             multiModelMode={multiModelMode}
             onToggleMultiModelMode={() => setMultiModelMode(prev => !prev)}
+            groupChatMode={groupChatMode}
+            onToggleGroupChatMode={handleToggleGroupChatMode}
+            isGroupChat={currentConversation?.type === 'group_chat'}
           />
         )}
 

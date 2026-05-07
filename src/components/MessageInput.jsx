@@ -1,7 +1,7 @@
-import { Square, Flame, ArrowUp, Users, Lock } from 'lucide-react'
+import { Square, Flame, ArrowUp, Users, Lock, MessageCircle } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-export default function MessageInput({ onSendMessage, onStopGeneration, isGenerating, deepQAMode, onToggleDeepQAMode, hasFiles, multiModelMode, onToggleMultiModelMode }) {
+export default function MessageInput({ onSendMessage, onStopGeneration, isGenerating, deepQAMode, onToggleDeepQAMode, hasFiles, multiModelMode, onToggleMultiModelMode, groupChatMode, onToggleGroupChatMode, isGroupChat }) {
   const [input, setInput] = useState('')
   const [locked, setLocked] = useState(false)
   const [shaking, setShaking] = useState(false)
@@ -81,36 +81,53 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
 
         {/* Bottom toolbar */}
         <div className="flex items-center justify-between px-3 py-2">
-          {/* Left side: Deep Think (RAG conversations) or Multi Mode (normal conversations) */}
-          {hasFiles ? (
-            <button
-              type="button"
-              onClick={onToggleDeepQAMode}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                deepQAMode
-                  ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-              }`}
-              title={deepQAMode ? 'Deep Q&A Mode (ON)' : 'Deep Q&A Mode (OFF)'}
-            >
-              <Flame size={16} />
-              <span>Deep Think</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onToggleMultiModelMode}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                multiModelMode
-                  ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
-                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
-              }`}
-              title={multiModelMode ? 'Multi-model mode (ON)' : 'Multi-model mode (OFF)'}
-            >
-              <Users size={16} />
-              <span>Multi</span>
-            </button>
-          )}
+          {/* Left side: mode toggles */}
+          <div className="flex items-center gap-1">
+            {hasFiles ? (
+              <button
+                type="button"
+                onClick={onToggleDeepQAMode}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  deepQAMode
+                    ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                }`}
+                title={deepQAMode ? 'Deep Q&A Mode (ON)' : 'Deep Q&A Mode (OFF)'}
+              >
+                <Flame size={16} />
+                <span>Deep Think</span>
+              </button>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={onToggleMultiModelMode}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    multiModelMode
+                      ? 'bg-blue-50 text-blue-700 hover:bg-blue-100'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                  }`}
+                  title={multiModelMode ? 'Multi-model mode (ON)' : 'Multi-model mode (OFF)'}
+                >
+                  <Users size={16} />
+                  <span>Multi</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onToggleGroupChatMode}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    groupChatMode || isGroupChat
+                      ? 'bg-violet-50 text-violet-700 hover:bg-violet-100'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                  }`}
+                  title={groupChatMode || isGroupChat ? 'Group chat mode (ON)' : 'Group chat mode: AI agents discuss together'}
+                >
+                  <MessageCircle size={16} />
+                  <span>Group</span>
+                </button>
+              </>
+            )}
+          </div>
 
           {/* Right side: Stop + Send */}
           <div className="flex items-center gap-1">

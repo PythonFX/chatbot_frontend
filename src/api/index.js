@@ -386,4 +386,122 @@ export const api = {
 
   // Model list
   getModels: () => fetchWithError('/model/list'),
+
+  // Group Chat
+  createGroupChat: (agentIds) =>
+    fetchWithError('/group-chat/create', {
+      method: 'POST',
+      body: JSON.stringify({ agent_ids: agentIds }),
+    }),
+
+  getGroupChatAgents: () => fetchWithError('/group-chat/agents'),
+
+  stopGroupChat: (conversationId) =>
+    fetchWithError(`/group-chat/stop/${conversationId}`, { method: 'POST' }),
+
+  sendGroupChatStream: (conversationId, message, callbacks) => {
+    const { onRoundStart, onEvaluation, onAgentSpeaking, onChunk, onThinking, onAgentDone, onRoundEnd, onDone, onError, signal } = callbacks
+    let isAborted = false
+    let streamEndedNormally = false
+
+    if (signal) {
+      signal.addEventListener('abort', () => { isAborted = true })
+    }
+
+    const promise = fetch(`${apiBaseUrl}/group-chat/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ conversation_id: conversationId, message }),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`)
+        }
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        function processBuffer() {
+          if (isAborted) return true
+
+          const lines = buffer.split('\n')
+          buffer = lines.pop()
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6))
+
+                if (data.type === 'round_start') {
+                  onRoundStart?.(data.round)
+                } else if (data.type === 'evaluation') {
+                  onEvaluation?.(data)
+                } else if (data.type === 'agent_speaking') {
+                  onAgentSpeaking?.(data)
+                } else if (data.type === 'chunk') {
+                  onChunk?.(data.agent_id, data.text)
+                } else if (data.type === 'thinking') {
+                  onThinking?.(data.agent_id, data.thinking)
+                } else if (data.type === 'agent_done') {
+                  onAgentDone?.(data.agent_id)
+                } else if (data.type === 'round_end') {
+                  onRoundEnd?.(data.reason)
+                } else if (data.type === 'done') {
+                  streamEndedNormally = true
+                  onDone?.()
+                  return true
+                } else if (data.type === 'stopped') {
+                  streamEndedNormally = true
+                  onDone?.({ stopped: true })
+                  return true
+                } else if (data.type === 'error') {
+                  streamEndedNormally = true
+                  onError?.(data.message || data.error)
+                  return true
+                }
+              } catch (e) {
+                // Ignore parse errors for incomplete JSON
+              }
+            }
+          }
+          return false
+        }
+
+        function read() {
+          if (isAborted) return
+
+          return reader.read().then(({ done, value }) => {
+            if (done) {
+              if (buffer) processBuffer()
+              if (!streamEndedNormally && !isAborted) {
+                onError?.('Stream ended unexpectedly')
+              }
+              return
+            }
+
+            buffer += decoder.decode(value, { stream: true })
+            const complete = processBuffer()
+            if (!complete && !done && !isAborted) {
+              return read()
+            }
+          })
+        }
+
+        return read()
+      })
+      .catch((error) => {
+        if (!isAborted) {
+          onError?.(error.message)
+        }
+      })
+
+    return {
+      abort: () => {
+        isAborted = true
+        if (signal) signal.dispatchEvent(new Event('abort'))
+      },
+      promise,
+    }
+  },
 }

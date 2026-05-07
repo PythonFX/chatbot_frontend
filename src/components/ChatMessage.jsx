@@ -132,6 +132,8 @@ function CodeBlock({ language, codeString, isFolded, onFoldToggle }) {
 
 export default function ChatMessage({ message, onRegenerate, onSelectVersion, onGenerateVersion, onRegenerateModel, isGenerating, isCollapsed, onToggleCollapse, generatingVersionMessageId }) {
   const isUser = message.role === 'user'
+  const senderName = isUser ? 'You' : (message.sender_name || 'Assistant')
+  const isGroupChat = !isUser && !!message.sender_id
   const [isThinkingCollapsed, setIsThinkingCollapsed] = useState(false)
   // folded: Map of JSON block key -> boolean (true = collapsed)
   const [folded, setFolded] = useState(new Map())
@@ -215,7 +217,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
       >
         <div
           className={`w-8 h-8 rounded-full flex items-center justify-center ${
-            isUser ? 'bg-blue-500' : 'bg-green-500'
+            isUser ? 'bg-blue-500' : isGroupChat ? 'bg-violet-500' : 'bg-green-500'
           }`}
         >
           {isUser ? <User size={16} className="text-white" /> : <Bot size={16} className="text-white" />}
@@ -225,7 +227,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <span className="font-semibold text-gray-700">{isUser ? 'You' : 'Assistant'}</span>
+          <span className="font-semibold text-gray-700">{senderName}</span>
           {isCollapsed && (
             <span className="text-xs text-gray-400">(collapsed)</span>
           )}
