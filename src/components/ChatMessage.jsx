@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, Component, createContext, useContext } from 'react'
 import { User, Bot, RotateCcw, Copy, Check, RefreshCw, AlertCircle } from 'lucide-react'
 import { showToast } from './Toast'
+import { ModelContext } from '../App'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
@@ -162,7 +163,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
     return Object.keys(map).length > 0 ? map : null
   }, [hasVersions, message.versions])
 
-  const MODEL_LABELS = { minimax: 'Minimax', 'glm5.1': 'GLM-5.1', 'kimi-k2.6': 'Kimi K2.6' }
+  const modelDisplayNames = useContext(ModelContext)
 
   // Which model tab is active: only when selected version is multi-mode
   // Fallback for old data: version with model but no is_multi_mode field is treated as multi-mode
@@ -252,7 +253,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
                           : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                     }`}
                   >
-                    {MODEL_LABELS[model] || model}
+                    {modelDisplayNames[model] || model}
                     {isError && <AlertCircle size={10} />}
                   </button>
                 )
@@ -502,7 +503,7 @@ export default function ChatMessage({ message, onRegenerate, onSelectVersion, on
                 </button>
                 {hasVersions && message.versions[versionIdx]?.model && (
                   <span className="text-xs text-gray-500 bg-gray-200 px-1.5 py-0.5 rounded font-sans ml-1">
-                    {MODEL_LABELS[message.versions[versionIdx].model] || message.versions[versionIdx].model}
+                    {modelDisplayNames[message.versions[versionIdx].model] || message.versions[versionIdx].model}
                   </span>
                 )}
               </div>

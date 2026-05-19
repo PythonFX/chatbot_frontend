@@ -1,23 +1,19 @@
 import { Bot } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 
-const AGENT_COLORS = {
-  'Minimax': 'bg-purple-500',
-  'GLM-5.1': 'bg-blue-500',
-  'Kimi K2.6': 'bg-orange-500',
-  'Gemma4-e4b': 'bg-emerald-500',
-}
+const BG_COLORS = ['bg-purple-500', 'bg-blue-500', 'bg-orange-500', 'bg-emerald-500', 'bg-rose-500', 'bg-teal-500']
+const AVATAR_COLORS = ['bg-purple-100 text-purple-700', 'bg-blue-100 text-blue-700', 'bg-orange-100 text-orange-700', 'bg-emerald-100 text-emerald-700', 'bg-rose-100 text-rose-700', 'bg-teal-100 text-teal-700']
 
-const AGENT_AVATAR_COLORS = {
-  'Minimax': 'bg-purple-100 text-purple-700',
-  'GLM-5.1': 'bg-blue-100 text-blue-700',
-  'Kimi K2.6': 'bg-orange-100 text-orange-700',
-  'Gemma4-e4b': 'bg-emerald-100 text-emerald-700',
-}
+const _agentIndexMap = new Map()
+let _nextIndex = 0
 
 function getAgentColor(agentName, type = 'bg') {
-  if (type === 'avatar') return AGENT_AVATAR_COLORS[agentName] || 'bg-gray-100 text-gray-700'
-  return AGENT_COLORS[agentName] || 'bg-gray-500'
+  if (!_agentIndexMap.has(agentName)) {
+    _agentIndexMap.set(agentName, _nextIndex++)
+  }
+  const idx = _agentIndexMap.get(agentName) % BG_COLORS.length
+  if (type === 'avatar') return AVATAR_COLORS[idx]
+  return BG_COLORS[idx]
 }
 
 export default function GroupChatStreamer({ state }) {

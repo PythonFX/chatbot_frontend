@@ -14,17 +14,13 @@ import FilesList from './components/FilesList'
 import ToastContainer from './components/Toast'
 import { api } from './api'
 
-// Model switcher dropdown
-function ModelSwitcher({ currentModel, availableModels, onSwitch, onClose }) {
-  const MODEL_LABELS = {
-    'minimax': 'Minimax',
-    'glm5.1': 'GLM-5.1',
-    'kimi-k2.6': 'Kimi K2.6',
-  }
+export const ModelContext = createContext({})
 
+// Model switcher dropdown
+function ModelSwitcher({ currentModel, availableModels, modelDisplayNames, onSwitch, onClose }) {
   const models = (availableModels || []).map(id => ({
     id,
-    label: MODEL_LABELS[id] || id,
+    label: modelDisplayNames[id] || id,
   }))
 
   return (
@@ -134,8 +130,9 @@ export default function App() {
   const [uploadedFiles, setUploadedFiles] = useState([])
   const [uploadingFile, setUploadingFile] = useState(null) // { name, progress } during upload
   const [selectedFileIds, setSelectedFileIds] = useState([]) // Multi-select for RAG chat
-  const [currentModel, setCurrentModel] = useState('minimax')
-  const [availableModels, setAvailableModels] = useState(['minimax', 'glm5.1', 'kimi-k2.6'])
+  const [currentModel, setCurrentModel] = useState(null)
+  const [availableModels, setAvailableModels] = useState([])
+  const [modelDisplayNames, setModelDisplayNames] = useState({})
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
   const [multiModelMode, setMultiModelMode] = useState(false)
   const [multiStreamingState, setMultiStreamingState] = useState(null)
@@ -202,6 +199,11 @@ export default function App() {
     api.getModels().then(data => {
       if (data.current) setCurrentModel(data.current)
       if (data.available) setAvailableModels(data.available)
+      if (data.models) {
+        const names = {}
+        data.models.forEach(m => { names[m.id] = m.display_name })
+        setModelDisplayNames(names)
+      }
     }).catch(() => {})
     try {
       const saved = localStorage.getItem('messageVersions')
@@ -1388,13 +1390,14 @@ export default function App() {
                     title="Switch model"
                   >
                     <Bot size={14} />
-                    <span>{({ minimax: 'Minimax', 'glm5.1': 'GLM-5.1', 'kimi-k2.6': 'Kimi K2.6' })[currentModel] || currentModel}</span>
+                    <span>{modelDisplayNames[currentModel] || currentModel}</span>
                     <span className="text-xs text-gray-400">▾</span>
                   </button>
                   {modelSwitcherOpen && (
                     <ModelSwitcher
                       currentModel={currentModel}
                       availableModels={availableModels}
+                      modelDisplayNames={modelDisplayNames}
                       onSwitch={async (model) => {
                         setCurrentModel(model)
                         try {
@@ -1503,7 +1506,8 @@ export default function App() {
                       key={message.id}
                       ref={(el) => (messageRefs.current[index] = el)}
                     >
-                      <ChatMessage
+                      <ModelContext.Provider value={modelDisplayNames}>
+                        <ChatMessage
                         message={message}
                         onRegenerate={
                           message.role === 'user'
@@ -1528,6 +1532,7 @@ export default function App() {
                           })
                         }}
                       />
+                      </ModelContext.Provider>
                     </div>
                   ))}
 
