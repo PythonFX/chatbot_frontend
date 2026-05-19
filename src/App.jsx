@@ -136,6 +136,7 @@ export default function App() {
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
   const [multiModelMode, setMultiModelMode] = useState(false)
   const [multiStreamingState, setMultiStreamingState] = useState(null)
+  const [thinkingEnabled, setThinkingEnabled] = useState(true)
   const [loadingFiles, setLoadingFiles] = useState(false) // Loading files from backend
   const [messageVersions, setMessageVersions] = useState({}) // { [messageId]: { selectedIndex: number|null, versions: array } }
   const [generatingVersionMessageId, setGeneratingVersionMessageId] = useState(null) // Message ID currently generating a new version
@@ -154,6 +155,15 @@ export default function App() {
 
   // Derive isFilesView from URL
   const isFilesView = location.pathname === '/files'
+
+  // Load persisted settings on mount
+  useEffect(() => {
+    api.getSettings().then(settings => {
+      if (settings.thinking_enabled !== undefined) {
+        setThinkingEnabled(settings.thinking_enabled)
+      }
+    }).catch(() => {})
+  }, [])
 
   // Load files when on files view, and poll while files are processing
   useEffect(() => {
@@ -813,7 +823,8 @@ export default function App() {
       false,
       assistantMsgId,
       deepQAMode,
-      multiModelMode
+      multiModelMode,
+      thinkingEnabled
     )
   }
 
@@ -1691,6 +1702,14 @@ export default function App() {
             groupChatMode={groupChatMode}
             onToggleGroupChatMode={handleToggleGroupChatMode}
             isGroupChat={currentConversation?.type === 'group_chat'}
+            thinkingEnabled={thinkingEnabled}
+            onToggleThinking={() => {
+              setThinkingEnabled(prev => {
+                const next = !prev
+                api.updateSettings({ thinking_enabled: next }).catch(() => {})
+                return next
+              })
+            }}
           />
         )}
 

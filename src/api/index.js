@@ -121,7 +121,7 @@ export const api = {
     fetchWithError(`/conversations/${conversationId}/messages/${messageId}/rag-contexts`),
 
   // Streaming chat using fetch with ReadableStream and SSE
-  sendMessageStreamFetch: (conversationId, message, callbacks, resume = false, tempAssistantMsgId = null, deepQAMode = false, multiModelMode = false) => {
+  sendMessageStreamFetch: (conversationId, message, callbacks, resume = false, tempAssistantMsgId = null, deepQAMode = false, multiModelMode = false, thinkingEnabled = true) => {
     const { onChunk, onThinking, onDone, onError, onStart, signal } = callbacks
     let streamingMessageId = null
     let fullContent = ''
@@ -139,7 +139,7 @@ export const api = {
     const promise = fetch(`${apiBaseUrl}/chat/stream`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversation_id: conversationId, message, resume, deep_qa_mode: deepQAMode, multi_model: multiModelMode }),
+      body: JSON.stringify({ conversation_id: conversationId, message, resume, deep_qa_mode: deepQAMode, multi_model: multiModelMode, thinking_enabled: thinkingEnabled }),
     })
       .then((response) => {
         if (!response.ok) {
@@ -504,4 +504,8 @@ export const api = {
       promise,
     }
   },
+
+  // Settings
+  getSettings: () => fetchWithError('/settings'),
+  updateSettings: (data) => fetchWithError('/settings', { method: 'PUT', body: JSON.stringify(data) }),
 }

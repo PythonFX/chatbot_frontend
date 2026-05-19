@@ -1,7 +1,7 @@
-import { Square, Flame, ArrowUp, Users, Lock, MessageCircle } from 'lucide-react'
+import { Square, Flame, ArrowUp, Users, Lock, MessageCircle, Brain } from 'lucide-react'
 import { useState, useRef, useEffect, useCallback } from 'react'
 
-export default function MessageInput({ onSendMessage, onStopGeneration, isGenerating, deepQAMode, onToggleDeepQAMode, hasFiles, multiModelMode, onToggleMultiModelMode, groupChatMode, onToggleGroupChatMode, isGroupChat }) {
+export default function MessageInput({ onSendMessage, onStopGeneration, isGenerating, deepQAMode, onToggleDeepQAMode, hasFiles, multiModelMode, onToggleMultiModelMode, groupChatMode, onToggleGroupChatMode, isGroupChat, thinkingEnabled, onToggleThinking }) {
   const [input, setInput] = useState('')
   const [locked, setLocked] = useState(false)
   const [shaking, setShaking] = useState(false)
@@ -83,6 +83,19 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
         <div className="flex items-center justify-between px-3 py-2">
           {/* Left side: mode toggles */}
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onToggleThinking}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                thinkingEnabled
+                  ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              }`}
+              title={thinkingEnabled ? 'Thinking mode (ON)' : 'Thinking mode (OFF)'}
+            >
+              <Brain size={16} />
+              <span>Think</span>
+            </button>
             {hasFiles ? (
               <button
                 type="button"
