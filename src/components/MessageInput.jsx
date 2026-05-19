@@ -58,8 +58,8 @@ export default function MessageInput({ onSendMessage, onStopGeneration, isGenera
   }
 
   return (
-    <div className="relative z-10 -mt-10 px-4 pb-4 pt-10">
-      <div className="message-input-shell bg-white rounded-[28px]">
+    <div className="relative z-10 -mt-10 px-4 pb-4 pt-10 pointer-events-none">
+      <div className="message-input-shell bg-white rounded-[28px] pointer-events-auto">
         <div className="overflow-hidden rounded-[28px]">
         {/* Textarea area */}
         <div className="px-5 pt-3 pb-2">
