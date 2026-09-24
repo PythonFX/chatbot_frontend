@@ -387,6 +387,13 @@ export const api = {
   // Model list
   getModels: () => fetchWithError('/model/list'),
 
+  // Enable/disable a model
+  toggleModel: (model, enabled) =>
+    fetchWithError('/model/toggle', {
+      method: 'POST',
+      body: JSON.stringify({ model, enabled }),
+    }),
+
   // Group Chat
   createGroupChat: (agentIds) =>
     fetchWithError('/group-chat/create', {

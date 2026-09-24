@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { Bot, Copy, Check, Upload, X, FileText, MessageSquare, RefreshCw, Layers } from 'lucide-react'
+import { Bot, Copy, Check, Upload, X, FileText, MessageSquare, RefreshCw, Layers, Settings } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -38,6 +38,42 @@ function ModelSwitcher({ currentModel, availableModels, modelDisplayNames, onSwi
             {m.label}
             {m.id === currentModel && <span className="text-blue-500 text-xs">active</span>}
           </button>
+        ))}
+      </div>
+    </>
+  )
+}
+
+// Model settings dropdown: per-model enable/disable toggles
+function ModelSettings({ models, onToggle, onClose }) {
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="fixed z-50 top-14 right-4 bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-[240px]">
+        <div className="px-4 pb-1 text-xs font-medium text-gray-400 uppercase tracking-wide">Models</div>
+        {models.map(m => (
+          <div key={m.id} className="px-4 py-2 flex items-center justify-between gap-4">
+            <div className="flex flex-col min-w-0">
+              <span className={`text-sm truncate ${m.configured ? 'text-gray-700' : 'text-gray-400'}`}>
+                {m.display_name}
+              </span>
+              <span className="text-xs text-gray-400 truncate">{m.id}</span>
+            </div>
+            <button
+              onClick={() => onToggle(m.id, !m.enabled)}
+              disabled={!m.configured}
+              title={m.configured ? (m.enabled ? 'Disable model' : 'Enable model') : 'Not configured'}
+              className={`relative flex-shrink-0 w-9 h-5 rounded-full transition-colors ${
+                m.enabled ? 'bg-blue-500' : 'bg-gray-300'
+              } ${!m.configured ? 'opacity-40 cursor-not-allowed' : ''}`}
+            >
+              <span
+                className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                  m.enabled ? 'translate-x-4' : ''
+                }`}
+              />
+            </button>
+          </div>
         ))}
       </div>
     </>
@@ -134,6 +170,8 @@ export default function App() {
   const [availableModels, setAvailableModels] = useState([])
   const [modelDisplayNames, setModelDisplayNames] = useState({})
   const [modelSwitcherOpen, setModelSwitcherOpen] = useState(false)
+  const [modelSettingsOpen, setModelSettingsOpen] = useState(false)
+  const [allModels, setAllModels] = useState([]) // Full model list incl. disabled: [{id, display_name, provider, configured, enabled}]
   const [multiModelMode, setMultiModelMode] = useState(false)
   const [multiStreamingState, setMultiStreamingState] = useState(null)
   const [thinkingEnabled, setThinkingEnabled] = useState(true)
@@ -202,19 +240,47 @@ export default function App() {
     }
   }
 
-  // Load conversations on mount
-  useEffect(() => {
-    loadConversations()
-    // Fetch available models from backend
-    api.getModels().then(data => {
+  // Fetch model list from backend and sync all model-related state
+  const loadModels = async () => {
+    const data = await api.getModels()
+    if (data.current) setCurrentModel(data.current)
+    if (data.available) setAvailableModels(data.available)
+    if (data.models) {
+      setAllModels(data.models)
+      const names = {}
+      data.models.forEach(m => { names[m.id] = m.display_name })
+      setModelDisplayNames(names)
+    }
+  }
+
+  // Enable/disable a model from the settings panel
+  const handleToggleModel = async (model, enabled) => {
+    // Optimistic update
+    setAllModels(prev => prev.map(m => (m.id === model ? { ...m, enabled } : m)))
+    try {
+      const data = await api.toggleModel(model, enabled)
+      if (data.status === 'error') {
+        setError(data.error)
+      }
+      // Sync with backend truth (covers current-model fallback when disabling it)
       if (data.current) setCurrentModel(data.current)
       if (data.available) setAvailableModels(data.available)
       if (data.models) {
+        setAllModels(data.models)
         const names = {}
         data.models.forEach(m => { names[m.id] = m.display_name })
         setModelDisplayNames(names)
       }
-    }).catch(() => {})
+    } catch (err) {
+      setError('Failed to update model: ' + err.message)
+      loadModels().catch(() => {})
+    }
+  }
+
+  // Load conversations on mount
+  useEffect(() => {
+    loadConversations()
+    loadModels().catch(() => {})
     try {
       const saved = localStorage.getItem('messageVersions')
       if (saved) setMessageVersions(JSON.parse(saved))
@@ -1434,6 +1500,22 @@ export default function App() {
                 <Layers size={14} />
                 <span>{multiModelMode ? 'Multi' : 'Single'}</span>
               </button>
+              <div className="relative">
+                <button
+                  onClick={() => setModelSettingsOpen(prev => !prev)}
+                  className="flex items-center px-2 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-sm text-gray-700"
+                  title="Model settings"
+                >
+                  <Settings size={14} />
+                </button>
+                {modelSettingsOpen && (
+                  <ModelSettings
+                    models={allModels}
+                    onToggle={handleToggleModel}
+                    onClose={() => setModelSettingsOpen(false)}
+                  />
+                )}
+              </div>
             </div>
           )}
 
